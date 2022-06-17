@@ -3,6 +3,9 @@ StaffTools = {
 		{ "Shuttle Dropoff", "openShuttleConfig" },
 		{ "Firework Event", "openFireworkConfig" },
 		{ "GCW City Landing", "openCityLandingConfig" },
+		{ "GCW Formation", "openGCWFormationConfig" },
+		{ "Event Active Area", "openEventActiveAreaConfig" },
+		{ "Event AI Control", "openEventAiControlConfig" },
 	}
 }
 
@@ -51,6 +54,18 @@ end
 
 function StaffTools.openCityLandingConfig(pPlayer)
 	CityControlLanding:showMainUI(pPlayer)
+end
+
+function StaffTools.openGCWFormationConfig(pPlayer)
+	GCWFormation:showMainUI(pPlayer)
+end
+
+function StaffTools.openEventActiveAreaConfig(pPlayer)
+	EventActiveArea:showMainUI(pPlayer)
+end
+
+function StaffTools.openEventAiControlConfig(pPlayer)
+	EventAiControl:showMainUI(pPlayer)
 end
 
 function StaffTools:suiShuttleDropoffCallback(pPlayer, pSui, eventIndex, args)

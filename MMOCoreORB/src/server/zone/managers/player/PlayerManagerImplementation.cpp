@@ -20,6 +20,7 @@
 #include "server/zone/managers/frs/FrsManager.h"
 #include "server/db/ServerDatabase.h"
 #include "server/chat/ChatManager.h"
+#include "server/zone/packets/chat/ChatRoomMessage.h"
 #include "server/zone/managers/objectcontroller/ObjectController.h"
 #include "server/zone/managers/combat/CombatManager.h"
 #include "server/zone/managers/skill/Performance.h"
@@ -1168,7 +1169,7 @@ int PlayerManagerImplementation::notifyDestruction(TangibleObject* destructor, T
 		killPlayer(destructor, playerCreature, 0, isCombatAction);
 	} else {
 
-		playerCreature->setPosture(CreaturePosture::INCAPACITATED, !isCombatAction, !isCombatAction);
+		playerCreature->setPosture(CreaturePosture::INCAPACITATED, true, true);
 		playerCreature->clearCombatState(false);
 		playerCreature->clearState(CreatureState::FEIGNDEATH); // We got incapped for real - Remove the state so we can be DB'd
 
@@ -1282,6 +1283,28 @@ void PlayerManagerImplementation::killPlayer(TangibleObject* attacker, CreatureO
 
 		if (ghost != nullptr) {
 			trx.addState("playerCloningFacilityID", ghost->getCloningFacility());
+			trx.addState("playerIsJedi", ghost->isJedi());
+			trx.addState("playerIsLightJedi", ghost->isJediLight());
+			trx.addState("playerIsDarkJedi", ghost->isJediDark());
+			trx.addState("playerPvpRating", ghost->getPvpRating());
+		}
+
+		if (attacker->isPlayerCreature()) {
+			CreatureObject* attackerCreo = attacker->asCreatureObject();
+
+			if (attackerCreo != nullptr) {
+				trx.addState("attackerIsHuntingPlayer", attackerCreo->hasBountyMissionFor(player));
+				trx.addState("playerIsHuntingAttacker", player->hasBountyMissionFor(attackerCreo));
+
+				auto attackerGhost = attackerCreo->getPlayerObject();
+
+				if (attackerGhost != nullptr) {
+					trx.addState("attackerIsJedi", attackerGhost->isJedi());
+					trx.addState("attackerIsLightJedi", attackerGhost->isJediLight());
+					trx.addState("attackerIsDarkJedi", attackerGhost->isJediDark());
+					trx.addState("attackerPvpRating", attackerGhost->getPvpRating());
+				}
+			}
 		}
 	}
 
@@ -1355,6 +1378,96 @@ void PlayerManagerImplementation::killPlayer(TangibleObject* attacker, CreatureO
 						if (!strongMan->handleDarkCouncilDeath(attackerStrongRef, playerStrongRef))
 							strongMan->handleSuddenDeathLoss(playerStrongRef, copyThreatMap);
 					}, "PvPFRSKillTask");
+				}
+			}
+		}
+	}
+
+	if (ConfigManager::instance()->isPvpBroadcastChannelEnabled() && attacker->isPlayerCreature() && ghost != nullptr) {
+		ZoneServer* zoneServer = player->getZoneServer();
+
+		if (zoneServer != nullptr) {
+			ChatManager* chatManager = zoneServer->getChatManager();
+			CreatureObject* attackerCreature = attacker->asCreatureObject();
+
+			if (chatManager != nullptr && attackerCreature != nullptr) {
+				StringBuffer broadcastMsg;
+				String rebelMsg = "\r\\#33CCFFRebel Insurgent";
+				String imperialMsg = "\r\\#FF0000Imperial Agent";
+				String lightMsg = "\r\\#33CCFFLight Jedi";
+				String darkMsg = "\r\\#FF0000Dark Jedi";
+
+				bool areInDuel = CombatManager::instance()->areInDuel(attackerCreature, player);
+
+				// Destructed player
+				String playerName = player->getFirstName();
+				String playerJedi = "";
+				String playerFactionMsg = "";
+
+				if (ghost->getJediState() >= 4) {
+					bool light = ghost->isJediLight();
+
+					if (light)
+						playerJedi = lightMsg;
+					else
+						playerJedi = darkMsg;
+				} else {
+					uint32 playerFaction = player->getFaction();
+
+					if (playerFaction == Factions::FACTIONREBEL)
+						playerFactionMsg = rebelMsg;
+					else if(playerFaction == Factions::FACTIONIMPERIAL)
+						playerFactionMsg = imperialMsg;
+				}
+
+				// Attacker
+				String attackerName = attackerCreature->getFirstName();
+				String attackerJedi = "";
+				String attackerFactionMsg = "";
+
+				PlayerObject* attackerGhost = attackerCreature->getPlayerObject();
+
+				if (attackerGhost != nullptr && attackerGhost->isJedi()) {
+					bool light = attackerGhost->isJediLight();
+
+					if (light)
+						attackerJedi = lightMsg;
+					else
+						attackerJedi = darkMsg;
+				} else {
+					uint32 attackerFaction = attackerCreature->getFaction();
+
+					if (attackerFaction == Factions::FACTIONREBEL)
+						attackerFactionMsg = rebelMsg;
+					else if(attackerFaction == Factions::FACTIONIMPERIAL)
+						attackerFactionMsg = imperialMsg;
+				}
+
+				bool attackerIsHunting = attackerCreature->hasBountyMissionFor(player);
+				bool playerIsHunting = player->hasBountyMissionFor(attackerCreature);
+
+				String type = areInDuel ? "in a duel." : "in GCW combat.";
+
+				if (!areInDuel) {
+					if (attackerIsHunting) {
+						type = "fulfilling their Bounty Mission.";
+					} else if (playerIsHunting) {
+						type = "failing their attempt to collect a bounty.";
+					}
+				}
+
+				broadcastMsg << attackerFactionMsg << attackerJedi << " " << attackerName << "\r\\#FFFFFF";
+				broadcastMsg << " has bested " << playerFactionMsg << playerJedi << " " << playerName << "\r\\#FFFFFF " << type;
+
+				UnicodeString message(broadcastMsg.toString());
+				UnicodeString formattedMsg(chatManager->formatMessage(message));
+
+				ManagedReference<ChatRoom*> pvpBroadcastRoom = chatManager->getPvpBroadcastRoom();
+
+				if (pvpBroadcastRoom != nullptr) {
+					BaseMessage* msg = new ChatRoomMessage("", server->getGalaxyName(), formattedMsg, pvpBroadcastRoom->getRoomID());
+
+					pvpBroadcastRoom->broadcastMessage(msg);
 				}
 			}
 		}
@@ -1654,7 +1767,10 @@ void PlayerManagerImplementation::sendPlayerToCloner(CreatureObject* player, uin
 
 	}
 
-
+	if (ConfigManager::instance()->getBool("Core3.PlayerManager.WipeFillingOnClone", false)) {
+		ghost->setFoodFilling(0);
+		ghost->setDrinkFilling(0);
+	}
 
 	Reference<Task*> task = new PlayerIncapacitationRecoverTask(player, true);
 	task->schedule(3 * 1000);
@@ -1815,6 +1931,9 @@ void PlayerManagerImplementation::disseminateExperience(TangibleObject* destruct
 				continue;
 			}
 
+			if (destructedObject->isAiAgent() && destructedObject->asAiAgent()->isEventMob())
+				continue;
+
 			CreatureObject* attackerCreo = attacker->asCreatureObject();
 
 			if (attackerCreo == nullptr) {
@@ -1837,6 +1956,7 @@ void PlayerManagerImplementation::disseminateExperience(TangibleObject* destruct
 			Locker crossLocker(owner, destructedObject);
 
 			PlayerObject* ownerGhost = owner->getPlayerObject();
+
 			if (ownerGhost == nullptr || !owner->hasSkill("outdoors_creaturehandler_novice") || !destructedObject->isInRange(owner, 80)) {
 				continue;
 			}
@@ -2550,6 +2670,8 @@ bool PlayerManagerImplementation::checkTradeItems(CreatureObject* player, Creatu
 						return false;
 
 					receiverDroidsTraded++;
+				} else if (petControlDevice->getPetType() == PetManager::HELPERDROIDPET) {
+					return false;
 				}
 			} else if (scene->isVehicleControlDevice()) {
 				VehicleControlDevice* vehicleControlDevice = cast<VehicleControlDevice*>(scene.get());

@@ -11,6 +11,9 @@
 class ObserverEventType {
 public:
 	enum {
+		// Adding Observers above the crafting checks will cause the stored eventType on already crafted foods to be improper
+		// Add new Observers to the bottom of the list
+
 		POSITIONCHANGED,			// ManagedObject arg1 = null, long arg2 = 0
 		CLOSECONTAINER,				// ManagedObject arg1 = player that closes the container, long arg2 = 0
 		POSTURECHANGED,				// ManagedObject arg1 = nullptr, long arg2 = new posture
@@ -52,7 +55,7 @@ public:
 		PLAYERCLONED,				// ManagedObject arg1 = player, long arg2 = 0
 		CRAFTINGASSEMBLY,			// ManagedObject arg1 = player, long arg2 = 0
 		CRAFTINGEXPERIMENTATION,	// ManagedObject arg1 = player, long arg2 = 0
-		PROTOTYPECREATED,			// ManagedObject arg1 = prototype, long arg2 = 0
+		PROTOTYPECREATED,			// ManagedObject arg1 = prototype, long arg2 = 0 bool for practice mode
 		ENHANCINGPERFORMED,			// ManagedObject arg1 = player, long arg2 = enhance amount
 		WOUNDHEALINGRECEIVED,		// ManagedObject arg1 = player, long arg2 = wound heal amount
 		XPAWARDED,					// ManagedObject arg1 = player, long arg2 = xp amount
@@ -91,6 +94,14 @@ public:
 		FACTIONCHANGED,				// ManagedObject arg1 = null, long arg2 = 0
 		SLICED,						// ManagedObject arg1 = player doing slicing, long arg2 = result (1/0)
 		SQUAD,						// ManagedObject arg1 = AiAgent, long arg2 = 0
+		QUESTKILL,					// ManagedObject arg1 = destructedObject, long arg2 = 0 Credit for quest/screenplay kills
+		DAMAGECHECKPOINT,
+		SAMPLETAKEN,				// ManagedObject arg1 = ResourceSpawn, long arg2 = amount harvested
+		ABILITYUSED,				// ManagedObject arg1 = null, long arg2 = command CRC
+		HARVESTEDCREATURE,			// ManagedObject arg1 = resource spawn, long arg2 = Total creature resources harvested
+		DEPLOYEDCAMP,				// ManagedObject arg1 = camp area, long arg2 = 0
+		IMAGEDESIGNHAIR,			// ManagedObject arg1 = null, long arg2 = 0
+		COMBATCOMMANDENQUEUED		// ManagedObject arg1 = player, long arg2 = 0
 	};
 };
 

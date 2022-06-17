@@ -34,11 +34,13 @@
 #include "server/zone/managers/gcw/GCWManager.h"
 #include "templates/faction/Factions.h"
 #include "server/zone/objects/player/FactionStatus.h"
+#include "server/chat/ChatManager.h"
 
 void TangibleObjectImplementation::initializeTransientMembers() {
 	SceneObjectImplementation::initializeTransientMembers();
 
 	threatMap = nullptr;
+	inNoCombatArea = false;
 
 	setLoggingName("TangibleObject");
 
@@ -196,6 +198,18 @@ void TangibleObjectImplementation::setFactionStatus(int status) {
 
 				creature->sendSystemMessage("@faction_recruiter:overt_complete");
 			}
+
+			if (ConfigManager::instance()->isPvpBroadcastChannelEnabled()) {
+				ZoneServer* zoneServer = getZoneServer();
+
+				if (zoneServer != nullptr) {
+					ChatManager* chatManager = zoneServer->getChatManager();
+
+					if (chatManager != nullptr) {
+						ghost->addChatRoom(chatManager->getPvpBroadcastRoom()->getRoomID());
+					}
+				}
+			}
 		} else if (factionStatus == FactionStatus::ONLEAVE) {
 			if (pvpStatusBitmask & CreatureFlag::OVERT)
 				pvpStatusBitmask &= ~CreatureFlag::OVERT;
@@ -242,17 +256,18 @@ void TangibleObjectImplementation::setFactionStatus(int status) {
 void TangibleObjectImplementation::sendPvpStatusTo(CreatureObject* player) {
 	uint32 newPvpStatusBitmask = pvpStatusBitmask;
 
-	if (!(newPvpStatusBitmask & CreatureFlag::ATTACKABLE)) {
-		if (isAttackableBy(player))
-			newPvpStatusBitmask |= CreatureFlag::ATTACKABLE;
-	} else if (!isAttackableBy(player)) {
+	bool attackable = isAttackableBy(player);
+	bool aggressive = isAggressiveTo(player);
+
+	if (attackable && !(newPvpStatusBitmask & CreatureFlag::ATTACKABLE)) {
+		newPvpStatusBitmask |= CreatureFlag::ATTACKABLE;
+	} else if (!attackable && newPvpStatusBitmask & CreatureFlag::ATTACKABLE) {
 		newPvpStatusBitmask &= ~CreatureFlag::ATTACKABLE;
 	}
 
-	if (!(newPvpStatusBitmask & CreatureFlag::AGGRESSIVE)) {
-		if (isAggressiveTo(player))
-			newPvpStatusBitmask |= CreatureFlag::AGGRESSIVE;
-	} else if (!isAggressiveTo(player)) {
+	if (aggressive && !(newPvpStatusBitmask & CreatureFlag::AGGRESSIVE)) {
+		newPvpStatusBitmask |= CreatureFlag::AGGRESSIVE;
+	} else if (!aggressive && newPvpStatusBitmask & CreatureFlag::AGGRESSIVE) {
 		newPvpStatusBitmask &= ~CreatureFlag::AGGRESSIVE;
 	}
 
@@ -764,12 +779,18 @@ int TangibleObjectImplementation::inflictDamage(TangibleObject* attacker, int da
 int TangibleObjectImplementation::notifyObjectDestructionObservers(TangibleObject* attacker, int condition, bool isCombatAction) {
 	notifyObservers(ObserverEventType::OBJECTDESTRUCTION, attacker, condition);
 
-	if (threatMap != nullptr)
-		threatMap->removeAll();
+	if (isCombatAction) {
+		Locker lock(asTangibleObject());
 
-	dropFromDefenderLists();
+		if (threatMap != nullptr)
+			threatMap->removeAll();
 
-	attacker->removeDefender(asTangibleObject());
+		dropFromDefenderLists();
+
+		Locker clock(asTangibleObject(), attacker);
+
+		attacker->removeDefender(asTangibleObject());
+	}
 
 	return 1;
 }
@@ -1158,21 +1179,28 @@ bool TangibleObjectImplementation::isAttackableBy(CreatureObject* creature) {
 	if (!(pvpStatusBitmask & CreatureFlag::ATTACKABLE))
 		return false;
 
+	if (isInNoCombatArea())
+		return false;
+
 	// Attacking CreO is AiAgent
 	if (creature->isAiAgent()) {
-		AiAgent* ai = creature->asAiAgent();
+		AiAgent* agent = creature->asAiAgent();
 
-		if (ai->getHomeObject().get() == asTangibleObject()) {
+		if (agent == nullptr)
+			return false;
+
+		if (agent->getHomeObject().get() == asTangibleObject()) {
 			return false;
 		}
 
-		if (ai->isPet()) {
-			ManagedReference<PetControlDevice*> pcd = ai->getControlDevice().get().castTo<PetControlDevice*>();
+		if (agent->isPet()) {
+			ManagedReference<PetControlDevice*> pcd = agent->getControlDevice().get().castTo<PetControlDevice*>();
+
 			if (pcd != nullptr && pcd->getPetType() == PetManager::FACTIONPET && isNeutral()) {
 				return false;
 			}
 
-			ManagedReference<CreatureObject*> owner = ai->getLinkedCreature().get();
+			ManagedReference<CreatureObject*> owner = agent->getLinkedCreature().get();
 
 			if (owner == nullptr)
 				return false;
@@ -1204,7 +1232,7 @@ bool TangibleObjectImplementation::isAttackableBy(CreatureObject* creature) {
 		return false;
 	}
 
-	// info(true) << "RanO isAttackable check return true";
+	// info(true) << "TanO isAttackable check return true";
 
 	return pvpStatusBitmask & CreatureFlag::ATTACKABLE;
 }
@@ -1212,6 +1240,11 @@ bool TangibleObjectImplementation::isAttackableBy(CreatureObject* creature) {
 void TangibleObjectImplementation::addActiveArea(ActiveArea* area) {
 	if (!area->isDeployed())
 		area->deploy();
+
+	if (area->isNoCombatArea()) {
+		inNoCombatArea = true;
+		broadcastPvpStatusBitmask();
+	}
 
 	Locker locker(&containerLock);
 

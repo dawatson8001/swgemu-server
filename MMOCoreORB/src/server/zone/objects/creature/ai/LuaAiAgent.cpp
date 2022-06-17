@@ -20,6 +20,8 @@
 #include "server/zone/managers/reaction/ReactionManager.h"
 #include "server/zone/objects/intangible/PetControlDevice.h"
 #include "server/zone/objects/creature/ai/AiAgent.h"
+#include "server/zone/objects/intangible/tasks/PetControlDeviceStoreObjectTask.h"
+#include "server/zone/objects/area/ActiveArea.h"
 
 const char LuaAiAgent::className[] = "LuaAiAgent";
 
@@ -42,6 +44,8 @@ Luna<LuaAiAgent>::RegType LuaAiAgent::Register[] = {
 		{ "setNextPosition", &LuaAiAgent::setNextPosition },
 		{ "getMaxDistance", &LuaAiAgent::getMaxDistance },
 		{ "generatePatrol", &LuaAiAgent::generatePatrol },
+		{ "clearPatrolPoints", &LuaAiAgent::clearPatrolPoints },
+		{ "clearCurrentPath", &LuaAiAgent::clearCurrentPath },
 		{ "setDestination", &LuaAiAgent::setDestination },
 		{ "isWaiting", &LuaAiAgent::isWaiting },
 		{ "stopWaiting", &LuaAiAgent::stopWaiting },
@@ -128,6 +132,9 @@ Luna<LuaAiAgent>::RegType LuaAiAgent::Register[] = {
 		{ "addCreatureFlag", &LuaAiAgent::addCreatureFlag },
 		{ "removeCreatureFlag", &LuaAiAgent::removeCreatureFlag },
 		{ "setAIDebug", &LuaAiAgent::setAIDebug },
+		{ "storePet", &LuaAiAgent::storePet },
+		{ "setEventArea", &LuaAiAgent::setEventArea },
+		{ "setHamRegenDisabled", &LuaAiAgent::setHamRegenDisabled },
 		{ 0, 0 }
 };
 
@@ -290,6 +297,22 @@ int LuaAiAgent::generatePatrol(lua_State* L) {
 	lua_pushboolean(L, retVal);
 
 	return 1;
+}
+
+int LuaAiAgent::clearPatrolPoints(lua_State* L) {
+	Locker lock(realObject);
+
+	realObject->clearPatrolPoints();
+
+	return 0;
+}
+
+int LuaAiAgent::clearCurrentPath(lua_State* L) {
+	Locker lock(realObject);
+
+	realObject->clearCurrentPath();
+
+	return 0;
 }
 
 int LuaAiAgent::setDestination(lua_State* L) {
@@ -666,9 +689,17 @@ int LuaAiAgent::shouldRetreat(lua_State* L) {
 }
 
 int LuaAiAgent::leash(lua_State* L) {
+	bool forcePeace = true;
+
+	int numberOfArguments = lua_gettop(L);
+
+	if (numberOfArguments == 1) {
+		forcePeace = lua_toboolean(L, -1);
+	}
+
 	Locker locker(realObject);
 
-	realObject->leash();
+	realObject->leash(forcePeace);
 
 	return 0;
 }
@@ -1006,6 +1037,44 @@ int LuaAiAgent::setAIDebug(lua_State* L) {
 
 	Locker locker(realObject);
 	realObject->setAIDebug(true);
+
+	return 0;
+}
+
+int LuaAiAgent::storePet(lua_State* L) {
+	if (!realObject->isPet())
+		return 0;
+
+	CreatureObject* owner = realObject->getLinkedCreature().get();
+	ManagedReference<PetControlDevice*> controlDevice = realObject->getControlDevice().get().castTo<PetControlDevice*>();
+
+	if (owner != nullptr && controlDevice != nullptr) {
+		Reference<PetControlDeviceStoreObjectTask*> task = new PetControlDeviceStoreObjectTask(controlDevice, owner, true);
+		task->execute();
+	}
+
+	return 0;
+}
+
+int LuaAiAgent::setEventArea(lua_State* L) {
+	ActiveArea* area = (ActiveArea*) lua_touserdata(L, -1);
+
+	if (area == nullptr)
+		return 0;
+
+	Locker lock(realObject);
+
+	realObject->setEventArea(area);
+
+	return 0;
+}
+
+int LuaAiAgent::setHamRegenDisabled(lua_State* L) {
+	bool regenDisabled = lua_toboolean(L, -1);
+
+	Locker lock(realObject);
+
+	realObject->setHamRegenDisabled(regenDisabled);
 
 	return 0;
 }

@@ -443,6 +443,9 @@ public:
 			delay->addMiliTime(newDelay);
 		}
 
+		if (agent->getPosture() != CreaturePosture::UPRIGHT)
+			agent->setPosture(CreaturePosture::UPRIGHT, true);
+
 		if (show) {
 			agent->showFlyText("npc_reaction/flytext", "alert", 255, 0, 0);
 
@@ -611,18 +614,25 @@ public:
 		}
 
 		bool healExecuted = false;
+		float range = 7.5f;
+		uint32 healerType = agent->getHealerType().toLowerCase().hashCode();
+
+		if (healerType == STRING_HASHCODE("force")) {
+			range = 32.f;
+		}
 
 		if (healTarget->getHAM(CreatureAttribute::HEALTH) < healTarget->getMaxHAM(CreatureAttribute::HEALTH) || healTarget->getHAM(CreatureAttribute::ACTION) < healTarget->getMaxHAM(CreatureAttribute::ACTION)) {
+			agent->clearQueueActions();
+
 			if (healTarget == agent) {
 				agent->healTarget(healTarget);
 				healExecuted = true;
 			} else {
-				if (agent->isInRange(healTarget, 2.0f)) {
+				if (agent->isInRange(healTarget, range)) {
 					Locker clocker(healTarget, agent);
 
 					agent->healTarget(healTarget);
 
-					agent->setMovementState(AiAgent::FOLLOWING);
 					healExecuted = true;
 				}
 			}
@@ -833,6 +843,113 @@ public:
 		return msg.toString();
 	}
 };
+
+class Rest : public Behavior {
+public:
+	Rest(const String& className, const uint32 id, const LuaObject& args) : Behavior(className, id, args) {
+	}
+
+	Rest(const Rest& a) : Behavior(a) {
+	}
+
+	Rest& operator=(const Rest& a) {
+		if (this == &a)
+			return *this;
+		Behavior::operator=(a);
+		return *this;
+	}
+
+	Behavior::Status execute(AiAgent* agent, unsigned int startIdx = 0) const {
+		if (agent == nullptr)
+			return FAILURE;
+
+		Time* restDelay = agent->getRestDelay();
+
+		if (restDelay == nullptr) {
+			return FAILURE;
+		}
+
+		// Wait 5 minutes until we check if we should rest again
+		int delay = 300 * 1000;
+
+		restDelay->updateToCurrentTime();
+		restDelay->addMiliTime(delay);
+
+		agent->setMovementState(AiAgent::RESTING);
+
+		// Chance to stop resting from 45s up to 2 minutes stored in ms
+		int restingTime = delay - ((45 + System::random(45)) * 1000);
+		agent->writeBlackboard("restingTime", restingTime);
+
+		int speciesID = agent->getSpecies();
+		bool canSitDown = false;
+
+		Zone* zone = agent->getZone();
+
+		// We are returning Success here since we have the state and delays set
+		if (zone == nullptr)
+			return SUCCESS;
+
+		ManagedReference<CreatureManager*> creoManager = zone->getCreatureManager();
+
+		if (creoManager != nullptr) {
+			AiSpeciesData* speciesData = creoManager->getAiSpeciesData(speciesID);
+
+			if (speciesData != nullptr) {
+				canSitDown = speciesData->canSitDown();
+			}
+		}
+
+		if (agent->isNpc() || (canSitDown && System::random(2) > 0)) {
+			agent->setPosture(CreaturePosture::SITTING, true);
+		} else {
+			agent->setPosture(CreaturePosture::LYINGDOWN, true);
+		}
+
+		return SUCCESS;
+	}
+
+	String print() const {
+		StringBuffer msg;
+		msg << className;
+
+		return msg.toString();
+	}
+};
+
+class StopResting : public Behavior {
+public:
+	StopResting(const String& className, const uint32 id, const LuaObject& args) : Behavior(className, id, args) {
+	}
+
+	StopResting(const StopResting& a) : Behavior(a) {
+	}
+
+	StopResting& operator=(const StopResting& a) {
+		if (this == &a)
+			return *this;
+		Behavior::operator=(a);
+		return *this;
+	}
+
+	Behavior::Status execute(AiAgent* agent, unsigned int startIdx = 0) const {
+		if (agent == nullptr)
+			return FAILURE;
+
+		agent->setPosture(CreaturePosture::UPRIGHT, true);
+		agent->setMovementState(AiAgent::PATROLLING);
+
+		return SUCCESS;
+	}
+
+	String print() const {
+		StringBuffer msg;
+		msg << className;
+
+		return msg.toString();
+	}
+};
+
 
 }
 }

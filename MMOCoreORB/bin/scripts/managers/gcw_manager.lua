@@ -56,26 +56,24 @@ crackdownScansEnabled = true
 difficutlyScalingThresholds = {0, 64}
 
 --[[
-	-- TESTING VALUES
-	crackdownScanPrivilegedPlayers = true
-	crackdownPlayerScanCooldown = 15 * 60  -- In seconds
-	crackdownContrabandFineCredits = 10000
-	crackdownContrabandFineFactionPoints = 100
-	crackdownPlanetsWithWildScans = { "corellia", "dantooine", "dathomir", "endor", "lok", "naboo", "rori", "talus", "tatooine", "yavin4"}
-	-- Radius for the area in which all players are retrieved in order to select one of them randomly to be scanned in the wild.
-	-- All objects in the quadtree in that radius will be iterated. Iteration will happen every 10s on each active planet.
-	crackdownPerformanceWildScanPlayerFindRadius = 2560 -- meter radius
+-- TESTING VALUES
+crackdownScanPrivilegedPlayers = true
+wildScanInterval = 2 * 60 -- In seconds
+wildScanChance = 75 -- % chance for a valid scan target to be scanned
+crackdownPlayerScanCooldown = 15 * 60  -- In seconds
+crackdownContrabandFineCredits = 10000
+crackdownContrabandFineFactionPoints = 100
+crackdownPlanetsWithWildScans = { "corellia", "dantooine", "dathomir", "endor", "lok", "naboo", "rori", "talus", "tatooine", "yavin4"}
 ]]
-	-- PRODUCTION SERVER VALUES
-	crackdownScanPrivilegedPlayers = false
-	crackdownScanInterval = 10
-	crackdownPlayerScanCooldown = 2 * 24 * 60 * 60  -- In seconds, 48 hour cooldown
-	crackdownContrabandFineCredits = 10000
-	crackdownContrabandFineFactionPoints = 100
-	crackdownPlanetsWithWildScans = { "corellia", "dantooine", "dathomir", "endor", "lok", "naboo", "rori", "talus", "tatooine", "yavin4"}
-	-- Radius for the area in which all players are retrieved in order to select one of them randomly to be scanned in the wild.
-	-- All objects in the quadtree in that radius will be iterated. Iteration will happen every 10 s on each active planet.
-	crackdownPerformanceWildScanPlayerFindRadius = 256 -- 256m radius
+
+-- PRODUCTION SERVER VALUES
+crackdownScanPrivilegedPlayers = false
+wildScanInterval = 10 * 60 -- In seconds
+wildScanChance = 15 -- % chance for a valid scan target to be scanned
+crackdownPlayerScanCooldown = 2 * 24 * 60 * 60  -- In seconds, 48 hour cooldown
+crackdownContrabandFineCredits = 10000
+crackdownContrabandFineFactionPoints = 100
+crackdownPlanetsWithWildScans = { "corellia", "dantooine", "dathomir", "endor", "lok", "naboo", "rori", "talus", "tatooine", "yavin4"}
 
 -- discount percentage for side losing&winning the gcw.  negative value of increase in price (penality).  positive for a decrease (Bonus)
 
@@ -263,3 +261,65 @@ terminalSpawns = {
 	}
 }
 
+squadFormations = {
+	-- Rebel
+	{"rebel_small_1",
+		{"fbase_rebel_corporal", "fbase_rebel_sergeant", "fbase_rebel_sharpshooter", "fbase_rebel_sharpshooter", "fbase_rebel_recruit"},
+	},
+	{"rebel_large_1",
+		{"fbase_rebel_colonel", "fbase_rebel_army_captain", "fbase_rebel_first_lieutenant", "fbase_rebel_master_sergeant", "fbase_rebel_comm_operator", "fbase_rebel_medic", "fbase_rebel_medic", "fbase_rebel_command_security_guard", "fbase_rebel_recruit"},
+	},
+	{"rebel_small_2",
+		{"fbase_rebel_squad_leader", "fbase_rebel_liberator", "fbase_rebel_grenadier", "fbase_rebel_guardsman", "fbase_rebel_rifleman"},
+	},
+	{"rebel_large_2",
+		{"fbase_rebel_army_captain", "fbase_rebel_guardsman", "fbase_rebel_guardsman", "fbase_rebel_commando", "fbase_rebel_commando", "fbase_rebel_rifleman", "fbase_rebel_rifleman", "fbase_rebel_grenadier", "fbase_rebel_liberator"},
+	},
+	{"rebel_small_3",
+		{"fbase_rebel_corporal_hard", "fbase_rebel_warrant_officer_ii_hard", "fbase_rebel_medic_hard", "fbase_rebel_elite_sand_rat", "fbase_rebel_elite_sand_rat"},
+	},
+	{"rebel_large_3",
+		{"fbase_rebel_first_lieutenant_hard", "fbase_rebel_master_sergeant_hard", "fbase_rebel_medic_hard", "fbase_rebel_comm_operator_hard", "fbase_rebel_commando_hard", "fbase_rebel_commando_hard", "fbase_rebel_heavy_trooper", "fbase_rebel_heavy_trooper", "fbase_rebel_heavy_trooper"},
+	},
+	{"rebel_small_4",
+		{"fbase_rebel_squad_leader_hard", "fbase_rebel_elite_sand_rat_hard", "fbase_rebel_elite_heavy_trooper", "fbase_rebel_elite_heavy_trooper", "fbase_rebel_rifleman_hard"},
+	},
+	{"rebel_large_4",
+		{"fbase_rebel_colonel_hard", "fbase_rebel_guard_captain_hard", "fbase_rebel_elite_heavy_trooper_hard", "fbase_rebel_elite_heavy_trooper_hard", "fbase_rebel_elite_heavy_trooper_hard", "fbase_rebel_elite_heavy_trooper_hard", "fbase_rebel_grenadier_hard", "fbase_rebel_guardsman_hard", "fbase_rebel_guardsman_hard"},
+	},
+
+	-- Imperial
+	{"imperial_small_1",
+		{"fbase_imperial_sergeant", "fbase_scout_trooper", "fbase_specialist_noncom", "fbase_imperial_noncom", "fbase_imperial_medic"},
+	},
+	{"imperial_large_1",
+		{"fbase_imperial_army_captain", "fbase_imperial_sergeant", "fbase_imperial_sharpshooter", "fbase_imperial_noncom", "fbase_imperial_noncom", "fbase_imperial_warrant_officer_ii", "fbase_imperial_medic", "fbase_comm_operator", "fbase_imperial_noncom"},
+	},
+	{"imperial_small_2",
+		{"fbase_stormtrooper_squad_leader", "fbase_stormtrooper", "fbase_stormtrooper", "fbase_imperial_exterminator", "fbase_imperial_exterminator"},
+	},
+	{"imperial_large_2",
+		{"fbase_stormtrooper_squad_leader", "fbase_stormtrooper", "fbase_stormtrooper", "fbase_command_security_guard_hard", "fbase_command_security_guard_hard", "fbase_stormtrooper_rifleman", "fbase_stormtrooper_rifleman", "fbase_stormtrooper_medic", "fbase_stormtrooper_bombardier"},
+	},
+	{"imperial_small_3",
+		{"fbase_imperial_corporal_hard", "fbase_comm_operator_hard", "fbase_imperial_sharpshooter_hard", "fbase_dark_trooper", "fbase_dark_trooper"},
+	},
+	{"imperial_large_3",
+		{"fbase_stormtrooper_captain", "fbase_imperial_first_lieutenant_hard", "fbase_imperial_sergeant_hard", "fbase_imperial_medic_hard", "fbase_comm_operator_hard", "fbase_dark_trooper", "fbase_dark_trooper", "fbase_imperial_noncom_hard", "fbase_imperial_noncom"},
+	},
+	{"imperial_small_4",
+		{"fbase_imperial_colonel_hard", "fbase_imperial_army_captain_hard", "fbase_elite_dark_trooper", "fbase_stormtrooper_sniper_hard", "fbase_stormtrooper_medic_hard"},
+	},
+	{"imperial_large_4",
+		{"fbase_stormtrooper_captain_extreme", "fbase_storm_commando_hard", "fbase_storm_commando_hard", "fbase_stormtrooper_rifleman_hard", "fbase_stormtrooper_rifleman_hard", "fbase_stormtrooper_medic_extreme", "fbase_stormtrooper_medic_extreme", "fbase_elite_dark_trooper_hard", "fbase_elite_dark_trooper_hard"},
+	},
+	{"stormtrooper_easy",
+		{"stormtrooper_squad_leader", "stormtrooper", "stormtrooper", "stormtrooper", "stormtrooper", "stormtrooper", "stormtrooper", "stormtrooper", "stormtrooper", "stormtrooper", "stormtrooper", "stormtrooper", "stormtrooper"},
+	},
+	{"stormtrooper_extreme",
+		{"fbase_stormtrooper_squad_leader_extreme", "fbase_stormtrooper_extreme", "fbase_stormtrooper_extreme", "fbase_stormtrooper_extreme", "fbase_stormtrooper_extreme", "fbase_stormtrooper_extreme", "fbase_stormtrooper_extreme", "fbase_stormtrooper_extreme", "fbase_stormtrooper_extreme", "fbase_stormtrooper_extreme", "fbase_stormtrooper_extreme", "fbase_stormtrooper_extreme", "fbase_stormtrooper_extreme"},
+	},
+	{"novatrooper",
+		{"novatrooper_squad_leader", "elite_novatrooper", "elite_novatrooper", "elite_novatrooper", "elite_novatrooper", "elite_novatrooper", "elite_novatrooper", "elite_novatrooper", "elite_novatrooper", "dark_trooper_novatrooper", "dark_trooper_novatrooper", "novatrooper_medic", "novatrooper_ensign"},
+	},
+}

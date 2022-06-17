@@ -58,6 +58,8 @@ CreatureTemplate::CreatureTemplate() {
 	optionsBitmask = 0;
 	customAiMap = 0;
 	tauntable = true;
+	healerType = "";
+	lightsaberColor = 0;
 
 	primaryWeapon = "";
 	secondaryWeapon = "";
@@ -126,6 +128,8 @@ void CreatureTemplate::readObject(LuaObject* templateData) {
 	patrolPathTemplate = templateData->getStringField("patrolPathTemplate");
 	defaultWeapon = templateData->getStringField("defaultWeapon");
 	tauntable = templateData->getBooleanField("tauntable", true);
+	healerType = templateData->getStringField("healerType").trim();
+	lightsaberColor = templateData->getIntField("lightsaberColor");
 
 	if(!templateData->getStringField("defaultAttack").isEmpty())
 		defaultAttack = templateData->getStringField("defaultAttack");

@@ -169,10 +169,15 @@ public:
 		creature->setCreatureLink(player);
 		creature->setFaction(player->getFaction());
 
-		if (player->getPvpStatusBitmask() & CreatureFlag::PLAYER)
-			creature->setPvpStatusBitmask(player->getPvpStatusBitmask() - CreatureFlag::PLAYER, false);
-		else
-			creature->setPvpStatusBitmask(player->getPvpStatusBitmask(), false);
+		uint32 playerPvpStatusBitmask = player->getPvpStatusBitmask();
+
+		if (playerPvpStatusBitmask & CreatureFlag::PLAYER) {
+			playerPvpStatusBitmask &= ~CreatureFlag::PLAYER;
+
+			creature->setPvpStatusBitmask(playerPvpStatusBitmask, false);
+		} else {
+			creature->setPvpStatusBitmask(playerPvpStatusBitmask, false);
+		}
 
 		creature->setBaby(false);
 
@@ -201,15 +206,20 @@ public:
 			}
 
 			agent->setLairTemplateCRC(0);
-			agent->setFollowObject(player);
-			agent->storeFollowObject();
-
-			agent->setHomeLocation(player->getPositionX(), player->getPositionZ(), player->getPositionY(), parent);
-			agent->setNextStepPosition(player->getPositionX(), player->getPositionZ(), player->getPositionY(), parent);
-			agent->clearPatrolPoints();
 
 			agent->setCreatureBitmask(CreatureFlag::PET);
 			agent->setAITemplate();
+			agent->clearPatrolPoints();
+
+			agent->setHomeLocation(player->getPositionX(), player->getPositionZ(), player->getPositionY(), parent);
+			agent->setNextStepPosition(player->getPositionX(), player->getPositionZ(), player->getPositionY(), parent);
+
+			controlDevice->setLastCommand(PetManager::FOLLOW);
+			controlDevice->setLastCommander(player);
+
+			agent->setFollowObject(player);
+			agent->storeFollowObject();
+			agent->setMovementState(AiAgent::FOLLOWING);
 		}
 
 		creature->getZone()->broadcastObject(creature, true);

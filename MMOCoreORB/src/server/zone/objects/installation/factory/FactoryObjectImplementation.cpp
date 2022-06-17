@@ -100,7 +100,7 @@ void FactoryObjectImplementation::createChildObjects() {
 void FactoryObjectImplementation::fillAttributeList(AttributeListMessage* alm, CreatureObject* object) {
 	InstallationObjectImplementation::fillAttributeList(alm, object);
 
-	if (operating && isOnAdminList(object)) {
+	if (operating && object != nullptr && isOnAdminList(object)) {
 		if (getContainerObjectsSize() == 0)
 			return;
 
@@ -443,7 +443,7 @@ bool FactoryObjectImplementation::startFactory() {
 			return false;
 	}
 
-	timer = ((int)schematic->getComplexity()) * 1;
+	timer = ((int)schematic->getComplexity()) * 8;
 
 	if(!populateSchematicBlueprint(schematic))
 		return false;

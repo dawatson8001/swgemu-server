@@ -252,6 +252,9 @@ class PlayerObject extends IntangibleObject {
 	@dereferenced
 	protected Time lastCrackdownGcwCombatActionTimestamp;
 
+	@dereferenced
+	protected Time lastPvpAreaCombatActionTimestamp;
+
 	protected unsigned int crackdownFactionTefCrc;
 
 	@dereferenced
@@ -385,6 +388,7 @@ class PlayerObject extends IntangibleObject {
 		lastBhPvpCombatActionTimestamp.updateToCurrentTime();
 		lastGcwPvpCombatActionTimestamp.updateToCurrentTime();
 		lastCrackdownGcwCombatActionTimestamp.updateToCurrentTime();
+		lastPvpAreaCombatActionTimestamp.updateToCurrentTime();
 		crackdownFactionTefCrc = 0;
 
 		lastDigestion.updateToCurrentTime();
@@ -496,6 +500,8 @@ class PlayerObject extends IntangibleObject {
 
 	@dirty
 	public native void checkAndShowTOS();
+
+	public native void createHelperDroid();
 
 	@dirty
 	public synchronized int getTotalOwnedStructureCount() {
@@ -1766,11 +1772,18 @@ class PlayerObject extends IntangibleObject {
 	@read
 	public native Time getLastGcwCrackdownCombatActionTimestamp();
 
+	@dereferenced
+	@local
+	@read
+	public native Time getLastPvpAreaCombatActionTimestamp();
+
 	public native void updateLastCombatActionTimestamp(boolean updateGcwCrackdownAction, boolean updateGcwAction, boolean updateBhAction);
 
 	public native void updateLastBhPvpCombatActionTimestamp();
 
 	public native void updateLastGcwPvpCombatActionTimestamp();
+
+	public native void updateLastPvpAreaCombatActionTimestamp();
 
 	@read
 	public native boolean hasTef();
@@ -1792,6 +1805,8 @@ class PlayerObject extends IntangibleObject {
 	public native void schedulePvpTefRemovalTask(boolean removeCrackdownGcwTefNow, boolean removeGcwTefNow, boolean removeBhTefNow);
 
 	public native void schedulePvpTefRemovalTask(boolean removeNow = false);
+
+	public native boolean isInPvpArea(boolean checkTime = true);
 
 	public void addVendor(SceneObject vendor) {
 		ownedVendors.add(vendor.getObjectID());

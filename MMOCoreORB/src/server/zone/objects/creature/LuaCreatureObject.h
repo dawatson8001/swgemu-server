@@ -50,6 +50,7 @@ namespace creature {
 		int getTargetID(lua_State* L);
 		int clearCombatState(lua_State* L);
 		int getHAM(lua_State* L);
+		int getBaseHAM(lua_State* L);
 		int getMaxHAM(lua_State* L);
 		int inflictDamage(lua_State* L);
 		//int playEffect(lua_State* L);
@@ -58,6 +59,7 @@ namespace creature {
 		int setState(lua_State* L);
 		int setPosture(lua_State* L);
 		int setMoodString(lua_State* L);
+		int getMoodString(lua_State* L);
 		int getPosture(lua_State* L);
 		int hasSkill(lua_State* L);
 		int removeSkill(lua_State* L);
@@ -119,11 +121,14 @@ namespace creature {
 		int villageKnightPrereqsMet(lua_State* L);
 		int getDamageDealerList(lua_State* L);
 		int getHealingThreatList(lua_State* L);
+		int getAllThreatsList(lua_State* L);
+		int dropFromThreatMap(lua_State* L);
 		int getSkillMod(lua_State* L);
 		int getGender(lua_State* L);
 		int isRidingMount(lua_State* L);
 		int dismount(lua_State* L);
 		int setAppearance(lua_State* L);
+		int getWeaponType(lua_State* L);
 	private:
 		// The pointer to the 'real object' defined in object.cc
 		CreatureObject* realObject;

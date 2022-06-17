@@ -24,6 +24,18 @@ class ActiveArea extends SceneObject {
 
 	protected boolean noSpawnArea;
 
+	protected boolean pvpArea;
+
+	protected boolean rebelOnlyArea;
+
+	protected boolean imperialOnlyArea;
+
+	protected boolean noCombatArea;
+
+	protected boolean noPetArea;
+
+	protected boolean lockedArea;
+
 	protected AreaShape areaShape;
 
 	@dereferenced
@@ -40,6 +52,18 @@ class ActiveArea extends SceneObject {
 		municipalZone = false;
 
 		noSpawnArea = false;
+
+		pvpArea = false;
+
+		rebelOnlyArea = false;
+
+		imperialOnlyArea = false;
+
+		noCombatArea = false;
+
+		noPetArea = false;
+
+		lockedArea = false;
 
 		areaShape = null;
 
@@ -171,6 +195,66 @@ class ActiveArea extends SceneObject {
 		return noSpawnArea;
 	}
 
+	@preLocked
+	public void setPvpArea(boolean val) {
+		pvpArea = val;
+	}
+
+	@read
+	public boolean isPvpArea() {
+		return pvpArea;
+	}
+
+	@preLocked
+	public void setRebelOnlyArea(boolean val) {
+		rebelOnlyArea = val;
+	}
+
+	@read
+	public boolean isRebelOnlyArea() {
+		return rebelOnlyArea;
+	}
+
+	@preLocked
+	public void setImperialOnlyArea(boolean val) {
+		imperialOnlyArea = val;
+	}
+
+	@read
+	public boolean isImperialOnlyArea() {
+		return imperialOnlyArea;
+	}
+
+	@preLocked
+	public void setNoCombatArea(boolean val) {
+		noCombatArea = val;
+	}
+
+	@read
+	public boolean isNoCombatArea() {
+		return noCombatArea;
+	}
+
+	@preLocked
+	public void setNoPetArea(boolean val) {
+		noPetArea = val;
+	}
+
+	@read
+	public boolean isNoPetArea() {
+		return noPetArea;
+	}
+
+	@preLocked
+	public void setLockedArea(boolean val) {
+		lockedArea = val;
+	}
+
+	@read
+	public boolean isLockedArea() {
+		return lockedArea;
+	}
+
 	@read
 	public boolean isMunicipalZone() {
 		return municipalZone;
@@ -199,7 +283,7 @@ class ActiveArea extends SceneObject {
 	public AreaShape getAreaShape() {
 		return areaShape;
 	}
-	
+
 	@read
 	public boolean isRectangularAreaShape() {
 		return areaShape && areaShape.isRectangularAreaShape();

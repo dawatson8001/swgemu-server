@@ -25,10 +25,10 @@ class FsBuffItem extends TangibleObject {
 	public FsBuffItem() {
 		setLoggingName("FsBuffItem");
 
-		reuseTime = 24 * 60 * 60 * 1000; // 3 Day default
+		reuseTime = 3 * 24 * 60 * 60 * 1000; // 3 Day default
 		buffAttribute = 0; // Default health
-		buffValue = 2000; // 1000 point default
-		buffDuration = 60 * 120; // 1 hour default
+		buffValue = 1000; // 1000 point default
+		buffDuration = 60 * 60; // 1 hour default
 	}
 
 	@local

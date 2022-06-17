@@ -29,6 +29,8 @@
 #include "templates/params/OptionBitmask.h"
 #include "templates/params/creature/CreatureFlag.h"
 #include "server/zone/objects/creature/ai/AiAgent.h"
+#include "server/zone/objects/intangible/PetControlDevice.h"
+#include "server/zone/managers/creature/PetManager.h"
 
 void InstallationObjectImplementation::loadTemplateData(SharedObjectTemplate* templateData) {
 	StructureObjectImplementation::loadTemplateData(templateData);
@@ -60,7 +62,7 @@ void InstallationObjectImplementation::sendBaselinesTo(SceneObject* player) {
 void InstallationObjectImplementation::fillAttributeList(AttributeListMessage* alm, CreatureObject* object) {
 	//TangibleObjectImplementation::fillAttributeList(alm, object);
 
-	if (isOnAdminList(object)) {
+	if (object != nullptr && isOnAdminList(object)) {
 
 		//Add the owner name to the examine window.
 		ManagedReference<SceneObject*> obj = object->getZoneServer()->getObject(ownerObjectID);
@@ -748,6 +750,12 @@ bool InstallationObjectImplementation::isAttackableBy(CreatureObject* creature) 
 	uint32 otherFaction = creature->getFaction();
 
 	if (creature->isPet()) {
+		ManagedReference<PetControlDevice*> pcd = creature->getControlDevice().get().castTo<PetControlDevice*>();
+
+		if (pcd != nullptr && pcd->getPetType() == PetManager::FACTIONPET && isNeutral()) {
+			return false;
+		}
+
 		ManagedReference<CreatureObject*> owner = creature->getLinkedCreature().get();
 
 		if (owner == nullptr)

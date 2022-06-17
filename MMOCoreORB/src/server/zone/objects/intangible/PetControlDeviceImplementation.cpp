@@ -6,6 +6,7 @@
 #include "server/zone/objects/creature/ai/AiAgent.h"
 #include "server/zone/objects/creature/ai/Creature.h"
 #include "server/zone/objects/creature/ai/DroidObject.h"
+#include "server/zone/objects/creature/ai/HelperDroidObject.h"
 #include "server/zone/objects/player/PlayerObject.h"
 #include "server/zone/objects/player/sui/listbox/SuiListBox.h"
 #include "server/zone/objects/player/sui/messagebox/SuiMessageBox.h"
@@ -31,6 +32,17 @@ void PetControlDeviceImplementation::callObject(CreatureObject* player) {
 	if (player->isInCombat() || player->isDead() || player->isIncapacitated() || player->getPendingTask("tame_pet") != nullptr) {
 		player->sendSystemMessage("@pet/pet_menu:cant_call"); // You cannot call this pet right now.
 		return;
+	}
+
+	SortedVector<ManagedReference<ActiveArea*> >* areas = player->getActiveAreas();
+
+	for (int i = 0; i < areas->size(); i++) {
+		ActiveArea* area = areas->get(i);
+
+		if (area != nullptr && area->isNoPetArea()) {
+			player->sendSystemMessage("@pet/pet_menu:cant_call"); // You cannot call this pet right now.
+			return;
+		}
 	}
 
 	if (player->isRidingMount()) {
@@ -61,6 +73,9 @@ void PetControlDeviceImplementation::callObject(CreatureObject* player) {
 
 	ManagedReference<AiAgent*> pet = cast<AiAgent*>(controlledObject.get());
 	ManagedReference<PlayerObject*> ghost = player->getPlayerObject();
+
+	if (ghost == nullptr)
+		return;
 
 	if (ghost->hasActivePet(pet))
 		return;
@@ -129,7 +144,7 @@ void PetControlDeviceImplementation::callObject(CreatureObject* player) {
 		box->setCancelButton(true,"@bio_engineer:pet_sui_abort");
 		box->setOtherButton(true,"@bio_engineer:pet_sui_fix_level");
 		box->setUsingObject(_this.getReferenceUnsafeStaticCast());
-		player->getPlayerObject()->addSuiBox(box);
+		ghost->addSuiBox(box);
 		player->sendMessage(box->generateMessage());
 		return;
 	}
@@ -224,7 +239,7 @@ void PetControlDeviceImplementation::callObject(CreatureObject* player) {
 		server->getZoneServer()->getPlayerManager()->handleAbortTradeMessage(player);
 	}
 
-	if (player->getCurrentCamp() == nullptr && player->getCityRegion() == nullptr) {
+	if (player->getCurrentCamp() == nullptr && player->getCityRegion() == nullptr && !ghost->isPrivileged()) {
 
 		Reference<CallPetTask*> callPet = new CallPetTask(_this.getReferenceUnsafeStaticCast(), player, "call_pet");
 
@@ -365,10 +380,15 @@ void PetControlDeviceImplementation::spawnObject(CreatureObject* player) {
 		if (creature->getHueValue() >= 0)
 			creature->setHue(creature->getHueValue());
 
-		if (player->getPvpStatusBitmask() & CreatureFlag::PLAYER)
-			creature->setPvpStatusBitmask(player->getPvpStatusBitmask() - CreatureFlag::PLAYER, true);
-		else
-			creature->setPvpStatusBitmask(player->getPvpStatusBitmask(), true);
+		uint32 playerPvpStatusBitmask = player->getPvpStatusBitmask();
+
+		if (playerPvpStatusBitmask & CreatureFlag::PLAYER) {
+			playerPvpStatusBitmask &= ~CreatureFlag::PLAYER;
+
+			creature->setPvpStatusBitmask(playerPvpStatusBitmask);
+		} else {
+			creature->setPvpStatusBitmask(playerPvpStatusBitmask);
+		}
 
 		if (trainedAsMount && (creature->getOptionsBitmask() ^ 0x1000)) {
 			creature->setOptionBit(0x1000);
@@ -421,6 +441,15 @@ void PetControlDeviceImplementation::spawnObject(CreatureObject* player) {
 		droid->addPendingTask("droid_skill_mod", droidSkillModTask, 3000); // 3 sec
 	}
 
+	if (pet->isHelperDroidObject()) {
+		HelperDroidObject* helperDroid = cast<HelperDroidObject*>(pet);
+
+		if (helperDroid == nullptr )
+			return;
+
+		helperDroid->onCall();
+	}
+
 	// This will clear the points set by the BT and any stored points on the PCD
 	pet->clearPatrolPoints();
 	clearPatrolPoints();
@@ -433,7 +462,7 @@ void PetControlDeviceImplementation::spawnObject(CreatureObject* player) {
 	if (petType == PetManager::CREATUREPET) {
 		pet->setCreatureBitmask(CreatureFlag::PET);
 	}
-	if (petType == PetManager::DROIDPET) {
+	if (petType == PetManager::DROIDPET || petType == PetManager::HELPERDROIDPET) {
 		pet->setCreatureBitmask(CreatureFlag::DROID_PET);
 	}
 	if (petType == PetManager::FACTIONPET) {

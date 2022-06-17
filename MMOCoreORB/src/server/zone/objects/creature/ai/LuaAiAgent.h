@@ -45,6 +45,8 @@ namespace ai {
 		int setNextPosition(lua_State* L);
 		int getMaxDistance(lua_State* L);
 		int generatePatrol(lua_State* L);
+		int clearPatrolPoints(lua_State* L);
+		int clearCurrentPath(lua_State* L);
 		int setDestination(lua_State* L);
 		int isWaiting(lua_State* L);
 		int stopWaiting(lua_State* L);
@@ -127,6 +129,9 @@ namespace ai {
 		int addCreatureFlag(lua_State* L);
 		int removeCreatureFlag(lua_State* L);
 		int setAIDebug(lua_State* L);
+		int storePet(lua_State* L);
+		int setEventArea(lua_State* L);
+		int setHamRegenDisabled(lua_State* L);
 	private:
 		AiAgent* realObject;
 	};

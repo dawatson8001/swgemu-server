@@ -75,6 +75,7 @@ void ChatManagerImplementation::stop() {
 	groupRoom = nullptr;
 	guildRoom = nullptr;
 	auctionRoom = nullptr;
+	pvpBroadcastRoom = nullptr;
 	gameRooms.removeAll();
 }
 
@@ -318,6 +319,14 @@ void ChatManagerImplementation::initiateRooms() {
 	auctionRoom->setCanEnter(true);
 	auctionRoom->setChatRoomType(ChatRoom::AUCTION);
 
+	if (ConfigManager::instance()->isPvpBroadcastChannelEnabled()) {
+		pvpBroadcastRoom = createRoom("PvPBroadcasts", galaxyRoom);
+		pvpBroadcastRoom->setCanEnter(true);
+		pvpBroadcastRoom->setAllowSubrooms(false);
+		pvpBroadcastRoom->setModerated(true);
+		pvpBroadcastRoom->setTitle("PvP death broadcasts.");
+		pvpBroadcastRoom->setChatRoomType(ChatRoom::CUSTOM);
+	}
 }
 
 void ChatManagerImplementation::initiatePlanetRooms() {
@@ -948,14 +957,22 @@ void ChatManagerImplementation::broadcastGalaxy(const String& message, const Str
 	}
 }
 
-void ChatManagerImplementation::broadcastGalaxy(CreatureObject* player, const String& message) {
+void ChatManagerImplementation::broadcastGalaxy(CreatureObject* creature, const String& message) {
 	String firstName = "SKYNET";
 
-	if (player != nullptr)
-		firstName = player->getFirstName();
-
 	StringBuffer fullMessage;
-	fullMessage << "[" << firstName << "] " << message;
+
+	if (creature != nullptr) {
+		if (creature->isPlayerCreature()) {
+			firstName = creature->getFirstName();
+			fullMessage << "[" << firstName << "] ";
+		} else {
+			firstName = creature->getCustomObjectName().toString();
+			fullMessage << firstName << ": ";
+		}
+	}
+
+	fullMessage << message;
 
 	const auto stringMessage = fullMessage.toString();
 

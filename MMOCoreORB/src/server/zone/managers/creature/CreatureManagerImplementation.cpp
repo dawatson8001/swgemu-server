@@ -541,6 +541,24 @@ int CreatureManagerImplementation::notifyDestruction(TangibleObject* destructor,
 	bool shouldRescheduleCorpseDestruction = false;
 
 	try {
+		SortedVector<ManagedReference<Observer* > > observers = destructedObject->getObservers(ObserverEventType::QUESTKILL);
+
+		if (observers.size() > 0) {
+			for (int i = 0; i < copyThreatMap.size(); ++i) {
+				TangibleObject* attacker = copyThreatMap.elementAt(i).getKey();
+
+				if (attacker == nullptr || !attacker->isPlayerCreature())
+					continue;
+
+				CreatureObject* attackerCreo = attacker->asCreatureObject();
+
+				if (attackerCreo == nullptr)
+					continue;
+
+				attackerCreo->notifyObservers(ObserverEventType::QUESTKILL, destructedObject);
+			}
+		}
+
 		ManagedReference<CreatureObject*> player = copyThreatMap.getHighestDamageGroupLeader();
 
 		uint64 ownerID = 0;
@@ -997,6 +1015,8 @@ void CreatureManagerImplementation::harvest(Creature* creature, CreatureObject* 
 		playerManager->awardExperience(player, "scout", xp, true);
 
 	creature->addAlreadyHarvested(player);
+
+	player->notifyObservers(ObserverEventType::HARVESTEDCREATURE, resourceSpawn, quantityExtracted);
 
 	if (!creature->hasLoot() && creature->getBankCredits() < 1 && creature->getCashCredits() < 1 && !playerManager->canGroupMemberHarvestCorpse(player, creature)) {
 		Reference<DespawnCreatureTask*> despawn = creature->getPendingTask("despawn").castTo<DespawnCreatureTask*>();
