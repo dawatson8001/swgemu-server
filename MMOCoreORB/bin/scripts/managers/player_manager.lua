@@ -44,14 +44,14 @@
 --GENERAL PLAYER SETTINGS
 -----------------------------------
 
-onlineCharactersPerAccount = 2 --How many characters are allowed online from a single account.
+onlineCharactersPerAccount = 4 --How many characters are allowed online from a single account.
 allowSameAccountPvpRatingCredit = 0
 
 --Blue frog / GM buff values
-performanceBuff = 1100
-medicalBuff = 2200
-performanceDuration = 7200 -- in seconds
-medicalDuration = 7200 -- in seconds
+performanceBuff = 10000
+medicalBuff = 10000
+performanceDuration = 72000 -- in seconds
+medicalDuration = 72000 -- in seconds
 
 --Sets the experience multiplier while grouped
 groupExpMultiplier = 1.2
@@ -61,11 +61,11 @@ globalExpMultiplier = 1.0
 
 --Sets the base number of control devices of each type that a player can have in their datapad at once
 --For creature pets, A Creature Handler will have the base number + their stored pets skill mod as limit
-baseStoredCreaturePets = 2
-baseStoredFactionPets = 3
-baseStoredDroids = 5
-baseStoredVehicles = 3
-baseStoredShips = 3
+baseStoredCreaturePets = 20
+baseStoredFactionPets = 20
+baseStoredDroids = 20
+baseStoredVehicles = 20
+baseStoredShips = 20
 
 -----------------------------------
 --VETERAN REWARDS CONFIG
@@ -109,7 +109,7 @@ veteranRewards = {
 		{templateFile = "object/tangible/veteran_reward/frn_tech_console_sectional_d.iff", milestone=360, oneTime=false, description="@veteran_new:techconsole_d"},
 		{templateFile = "object/tangible/veteran_reward/frn_vet_jabba_toy.iff", milestone=360, oneTime=false, description="@veteran_new:mini_jabba"},
 		{templateFile = "object/tangible/veteran_reward/frn_vet_stormtrooper_toy.iff", milestone=360, oneTime=false, description="@veteran_new:mini_stormtrooper"},
-		{templateFile = "object/tangible/veteran_reward/antidecay.iff", milestone=360, oneTime=true, description="@veteran_new:antidecay"},
+		{templateFile = "object/tangible/veteran_reward/antidecay.iff", milestone=360, oneTime=false, description="@veteran_new:antidecay"},
 
 		-- 450 Day Rewards
 		{templateFile = "object/tangible/camp/camp_spit_s2.iff", milestone=450, oneTime=false, description="Camp Center (Small)"},
@@ -154,7 +154,7 @@ veteranRewards = {
 		{templateFile = "object/tangible/loot/misc/loot_skull_ithorian.iff", milestone=900, oneTime=false, description="A Ithorian Skull"},
 		{templateFile = "object/tangible/loot/misc/loot_skull_thune.iff", milestone=900, oneTime=false, description="A Thune Skull"},
 		{templateFile = "object/tangible/loot/misc/loot_skull_voritor.iff", milestone=900, oneTime=false, description="A Voritor Lizard Skull"},
-		{templateFile = "object/tangible/wearables/helmet/helmet_s06.iff", milestone=900, oneTime=true, description="Rebel Endor Helmet"},
+		{templateFile = "object/tangible/wearables/helmet/helmet_s06.iff", milestone=900, oneTime=false, description="Rebel Endor Helmet"},
 
 		-- 990 Day Rewards
 		{templateFile = "object/tangible/furniture/modern/rug_rect_lg_s01.iff", milestone=990, oneTime=false, description="Large Rectangular Rug (Style 1)"},
@@ -162,7 +162,7 @@ veteranRewards = {
 		{templateFile = "object/tangible/furniture/modern/rug_oval_lg_s01.iff", milestone=990, oneTime=false, description="Large Oval Rug"},
 		{templateFile = "object/tangible/furniture/modern/rug_rnd_lg_s01.iff", milestone=990, oneTime=false, description="Large Round Rug"},
 		{templateFile = "object/tangible/furniture/all/frn_all_desk_map_table.iff", milestone=990, oneTime=false, description="Round Data Terminal"},
-		{templateFile = "object/tangible/wearables/armor/nightsister/armor_nightsister_bicep_r_s01.iff", milestone=990, oneTime=true, description="Nightsister Melee Armguard"},
+		{templateFile = "object/tangible/wearables/armor/nightsister/armor_nightsister_bicep_r_s01.iff", milestone=990, oneTime=false, description="Nightsister Melee Armguard"},
 
 		-- 1080 Day Rewards
 		{templateFile = "object/tangible/veteran_reward/one_year_anniversary/painting_01.iff", milestone=1080, oneTime=false, description="Painting: Cast Wing in Flight"},

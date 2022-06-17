@@ -47,7 +47,7 @@ Core3 = {
 	MakeZone = 1,
 	MakePing = 1,
 	MakeStatus = 1,
-	MakeWeb = 0,
+	MakeWeb = 1,
 
 	ORB = "",
 	ORBPort = 44419,
@@ -62,7 +62,7 @@ Core3 = {
 
 	LoginPort = 44453,
 	LoginProcessingThreads = 1,
-	LoginAllowedConnections = 3000,
+	LoginAllowedConnections = 100,
 	LoginRequiredVersion = "20050408-18:00",
 
 	MantisHost = "127.0.0.1",
@@ -81,7 +81,7 @@ Core3 = {
 	ProgressMonitors = "true",
 
 	PingPort = 44462,
-	PingAllowedConnections = 3000,
+	PingAllowedConnections = 100,
 
 	ZoneProcessingThreads = 10,
 	ZoneAllowedConnections = 30000,
@@ -96,20 +96,20 @@ Core3 = {
 	--"11",
 	--"character_farm",
 	--"cinco_city_test_m5",
-	--"corellia",
+	"corellia",
 	--"creature_test",
-	--"dantooine",
-	--"dathomir",
-	--"dungeon1",
-	--"endor",
+	"dantooine",
+	"dathomir",
+	"dungeon1",
+	"endor",
 	--"endor_asommers",
 	--"floratest",
 	--"godclient_test",
-	--"lok",
-	--"naboo",
+	"lok",
+	"naboo",
 	--"otoh_gunga",
 	--"rivertest",
-	--"rori",
+	"rori",
 	--"runtimerules",
 	--"simple",
 	--"space_09",
@@ -129,18 +129,18 @@ Core3 = {
 	--"space_tatooine_2",
 	--"space_yavin4",
 	--"taanab",
-	--"talus",
+	"talus",
 	"tatooine",
 	--"test_wearables",
 	"tutorial",
 	--"umbra",
 	--"watertabletest",
-	--"yavin4"
+	"yavin4"
 	},
 
 
 	-- Where tre files are stored
-	TrePath = "/home/swgemu/Desktop/SWGEmu",
+	TrePath = "/var/swgtre",
 
 	-- Each tre file (order is important!)
 	TreFiles = {
@@ -199,7 +199,7 @@ Core3 = {
 
 	-- Status Server Config
 	StatusPort = 44455,
-	StatusAllowedConnections = 500,
+	StatusAllowedConnections = 10,
 	StatusInterval = 30, -- interval to check if zone is locked up (in seconds)
 
 	-- Web Server Config
@@ -236,7 +236,7 @@ Core3 = {
 	CharacterBuilderEnabled = "true", -- Enable character builder terminals by default
 
 	PlayerLogLevel = 4, -- -1 NONE, 0 FATAL, 1 ERROR, 2 WARNING, 3 LOG, 4 INFO, 5 DEBUG
-	MaxLogLines = 1000000, -- how often to rotate log (currently only log/player.log rotates)
+	MaxLogLines = 100, -- how often to rotate log (currently only log/player.log rotates)
 }
 
 -- NOTE: conf/config-local.lua is parsed after this file if it exists
