@@ -334,7 +334,7 @@ bool PlayerCreationManager::createCharacter(ClientCreateCharacterCallback* callb
 
 	auto client = callback->getClient();
 
-	if (client->getCharacterCount(zoneServer.get()->getGalaxyID()) >= 20) {
+	if (client->getCharacterCount(zoneServer.get()->getGalaxyID()) >= 10) {
 		ErrorMessage* errMsg = new ErrorMessage("Create Error", "You are limited to 10 characters per galaxy.", 0x0);
 		client->sendMessage(errMsg);
 
@@ -538,8 +538,10 @@ bool PlayerCreationManager::createCharacter(ClientCreateCharacterCallback* callb
 		lastValidatedPosition->update(playerCreature);
 
 		ghost->setBiography(bio);
-
 		ghost->setLanguageID(playerTemplate->getDefaultLanguage());
+
+		Time now;
+		ghost->setBirthDate(now.getTime());
 	}
 
 	ClientCreateCharacterSuccess* msg = new ClientCreateCharacterSuccess(

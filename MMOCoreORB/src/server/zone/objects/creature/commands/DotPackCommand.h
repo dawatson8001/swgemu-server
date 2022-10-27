@@ -242,7 +242,7 @@ public:
 			creature->sendSystemMessage(stringId);
 		}
 
-		checkForTef(creature, targetCreature);
+		checkForDotTef(creature, targetCreature);
 	}
 
 	int hasCost(CreatureObject* creature) const {
@@ -293,6 +293,20 @@ public:
 		if (object == nullptr || !object->isCreatureObject() || creature == object)
 			return INVALIDTARGET;
 
+		CreatureObject* targetCreature = cast<CreatureObject*>(object.get());
+
+		if (targetCreature == nullptr)
+			return GENERALERROR;
+
+		if (!targetCreature->isAttackableBy(creature))
+			return INVALIDTARGET;
+
+		// Collision & Player Entry check
+		if (!CollisionManager::checkLineOfSight(creature, targetCreature) || !playerEntryCheck(creature, targetCreature)) {
+			creature->sendSystemMessage("@healing:no_line_of_sight"); // You cannot see your target.
+			return GENERALERROR;
+		}
+
 		uint8 pool = BuffAttribute::UNKNOWN;
 		bool poolGiven = false;
 		uint64 objectId = 0;
@@ -319,32 +333,16 @@ public:
 			return GENERALERROR;
 		}
 
-		CreatureObject* targetCreature = cast<CreatureObject*>(object.get());
-
-		if (targetCreature == nullptr)
-			return GENERALERROR;
-
 		int	range = int(dotPack->getRange() + creature->getSkillMod("healing_range") / 100 * 14);
 
 		// Distance Check
 		if (!checkDistance(creature, targetCreature, range))
 			return TOOFAR;
 
-		// Line of sight check
-		if (creature != targetCreature && !CollisionManager::checkLineOfSight(creature, targetCreature)) {
-			creature->sendSystemMessage("@healing:no_line_of_sight"); // You cannot see your target.
-			return GENERALERROR;
-		}
-
-		// player Entry check
-		if (!playerEntryCheck(creature, targetCreature)) {
-			return GENERALERROR;
-		}
-
 		// Checks Successful
 		Locker clocker(targetCreature, creature);
 
-		checkForTef(creature, targetCreature);
+		checkForDotTef(creature, targetCreature);
 		doAnimationsRange(creature, targetCreature, dotPack->getObjectID(), creature->getWorldPosition().distanceTo(targetCreature->getWorldPosition()), dotPack->isArea());
 
 		float modSkill = (float)creature->getSkillMod("healing_range_speed");

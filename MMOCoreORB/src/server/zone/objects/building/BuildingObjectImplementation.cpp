@@ -37,8 +37,11 @@
 #include "server/zone/objects/building/components/EnclaveContainerComponent.h"
 #include "server/zone/objects/building/components/DestructibleBuildingDataComponent.h"
 #include "server/zone/objects/transaction/TransactionLog.h"
+#include "server/zone/objects/player/FactionStatus.h"
 
 void BuildingObjectImplementation::initializeTransientMembers() {
+	cooldownTimerMap = new CooldownTimerMap();
+
 	StructureObjectImplementation::initializeTransientMembers();
 
 	setLoggingName("BuildingObject");
@@ -920,7 +923,7 @@ void BuildingObjectImplementation::onExit(CreatureObject* player, uint64 parenti
 
 uint32 BuildingObjectImplementation::getMaximumNumberOfPlayerItems() {
 	if (isCivicStructure() )
-		return 1250;
+		return 2500;
 
 	SharedStructureObjectTemplate* ssot = dynamic_cast<SharedStructureObjectTemplate*> (templateObject.get());
 
@@ -936,7 +939,7 @@ uint32 BuildingObjectImplementation::getMaximumNumberOfPlayerItems() {
 
 	auto maxItems = MAXPLAYERITEMS;
 
-	return Math::max(maxItems, lots * 1000);
+	return Math::min(maxItems, lots * 1000);
 }
 
 int BuildingObjectImplementation::notifyObjectInsertedToChild(SceneObject* object, SceneObject* child, SceneObject* oldParent) {
@@ -1383,16 +1386,26 @@ void BuildingObjectImplementation::createChildObjects() {
 				}
 
 			} else {
-				if ((obj->isTurret() || obj->isMinefield() || obj->isDetector()) && gcwMan != nullptr && !gcwMan->shouldSpawnDefenses()) {
-					if (obj->isTurret())
-						gcwMan->addTurret(asBuildingObject(), nullptr);
-					else if (obj->isMinefield())
-						gcwMan->addMinefield(asBuildingObject(), nullptr);
-					else if (obj->isDetector())
+				if ((obj->isTurret() || obj->isMinefield() || obj->isScanner()) && gcwMan != nullptr) {
+					if (!gcwMan->shouldSpawnDefenses()) {
+						if (obj->isTurret())
+							gcwMan->addTurret(asBuildingObject(), nullptr);
+						else if (obj->isMinefield())
+							gcwMan->addMinefield(asBuildingObject(), nullptr);
+						else if (obj->isScanner())
+							gcwMan->addScanner(asBuildingObject(), nullptr);
+
+						obj->destroyObjectFromDatabase(true);
+						continue;
+					}
+
+					// Prevent Scanners from spawning from GCW base templates if covert/overt system is disabled
+					if (obj->isScanner() && !ConfigManager::instance()->useCovertOvertSystem()) {
 						gcwMan->addScanner(asBuildingObject(), nullptr);
 
-					obj->destroyObjectFromDatabase(true);
-					continue;
+						obj->destroyObjectFromDatabase(true);
+						continue;
+					}
 				}
 
 				float angle = getDirection()->getRadians();
@@ -1412,7 +1425,7 @@ void BuildingObjectImplementation::createChildObjects() {
 				if (obj->isTurret() || obj->isMinefield())
 					obj->createChildObjects();
 
-				thisZone->transferObject(obj, -1, false);
+				thisZone->transferObject(obj, -1, true);
 			}
 
 			if (obj->isTurretControlTerminal()) {
@@ -1432,8 +1445,9 @@ void BuildingObjectImplementation::createChildObjects() {
 			permissions->setDefaultDenyPermission(ContainerPermissions::MOVECONTAINER);
 			permissions->setDenyPermission("owner", ContainerPermissions::MOVECONTAINER);
 
-			if (obj->isTurret() || obj->isMinefield() || obj->isDetector()) {
+			if (obj->isTurret() || obj->isMinefield() || obj->isScanner()) {
 				TangibleObject* tano = cast<TangibleObject*>(obj.get());
+
 				if (tano != nullptr) {
 					tano->setFaction(getFaction());
 					tano->setDetailedDescription("DEFAULT BASE TURRET");
@@ -1441,6 +1455,7 @@ void BuildingObjectImplementation::createChildObjects() {
 				}
 
 				InstallationObject* installation = cast<InstallationObject*>(obj.get());
+
 				if (installation != nullptr) {
 					installation->setOwner(getObjectID());
 				}
@@ -1450,7 +1465,7 @@ void BuildingObjectImplementation::createChildObjects() {
 						gcwMan->addTurret(asBuildingObject(), obj);
 					else if (obj->isMinefield())
 						gcwMan->addMinefield(asBuildingObject(), obj);
-					else if (obj->isDetector())
+					else if (obj->isScanner())
 						gcwMan->addScanner(asBuildingObject(), obj);
 
 				} else {
@@ -1540,8 +1555,7 @@ void BuildingObjectImplementation::spawnChildCreaturesFromTemplate() {
 					e.printStackTrace();
 				}
 
-			} // create the creature outside
-			else {
+			} else { // create the creature outside
 				String mobilename = child->getMobile();
 				float angle = getDirection()->getRadians();
 
@@ -1567,6 +1581,14 @@ void BuildingObjectImplementation::spawnChildCreaturesFromTemplate() {
 			if (creature->isAiAgent()) {
 				AiAgent* ai = cast<AiAgent*>(creature);
 				ai->setRespawnTimer(child->getRespawnTimer());
+
+				if (isGCWBase()) {
+					if (getPvpStatusBitmask() & CreatureFlag::OVERT) {
+						creature->setFactionStatus(FactionStatus::OVERT);
+					} else {
+						creature->setFactionStatus(FactionStatus::COVERT);
+					}
+				}
 			}
 
 			childCreatureObjects.put(creature);

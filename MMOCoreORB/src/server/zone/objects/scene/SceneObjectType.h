@@ -100,6 +100,7 @@ public:
 	/// Not in client **********
 	const static int GARAGEINSTALLATION = 0x1006;
 	const static int SHUTTLEINSTALLATION = 0x1007;
+	const static int COVERTSCANNER = 0x1008;
 	/// End **************
 
 	const static int TANGIBLE = 0x2000;  // MISC
@@ -164,6 +165,7 @@ public:
 	const static int FSCSOBJECT = 0x2039;
 	const static int FSBUFFITEM = 0x203A;
 	const static int CONTRACTCRATE = 0x203B;
+	const static int DEADEYEPROTOTYPE = 0x203C;
 	/// End Not in client **************
 
 	const static int TERMINAL = 0x4000;

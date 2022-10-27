@@ -666,6 +666,9 @@ template<> bool CheckShouldRest::check(AiAgent* agent) const {
 	if (!agent->isNeutral())
 		return false;
 
+	if (agent->getFollowObject() != nullptr)
+		return false;
+
 	Time* restDelay = agent->getRestDelay();
 
 	if (restDelay == nullptr || !restDelay->isPast())
@@ -691,7 +694,7 @@ template<> bool CheckStopResting::check(AiAgent* agent) const {
 	if (agent == nullptr)
 		return false;
 
-	if (agent->isInCombat())
+	if (agent->isInCombat() || agent->getFollowObject() != nullptr)
 		return true;
 
 	Time* restDelay = agent->getRestDelay();
@@ -713,4 +716,23 @@ template<> bool CheckStopResting::check(AiAgent* agent) const {
 	agent->eraseBlackboard("restingTime");
 
 	return true;
+}
+
+template<> bool CheckQueueSize::check(AiAgent* agent) const {
+	if (agent == nullptr)
+		return false;
+
+	int size = agent->getCommandQueueSize();
+
+	if (size >= 4) {
+		return true;
+	}
+
+	return false;
+}
+
+template<> bool CheckIsEscort::check(AiAgent* agent) const {
+	Locker lock(agent);
+
+	return agent->getCreatureBitmask() & CreatureFlag::ESCORT;
 }

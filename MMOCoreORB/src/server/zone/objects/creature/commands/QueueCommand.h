@@ -52,6 +52,7 @@ protected:
 public:
 	QueueCommand(const String& skillname, ZoneProcessServer* serv);
 
+	const static int NOCOMBATQUEUE = -1;
 	const static int IMMEDIATE = 0;
 	const static int FRONT = 1;
 	const static int NORMAL = 2;
@@ -375,6 +376,7 @@ public:
 	int doCommonMedicalCommandChecks(CreatureObject* creature) const;
 
 	void checkForTef(CreatureObject* creature, CreatureObject* target) const;
+	void checkForDotTef(CreatureObject* creature, CreatureObject* target) const;
 
 	String toStringData() const {
 		StringBuffer buf;

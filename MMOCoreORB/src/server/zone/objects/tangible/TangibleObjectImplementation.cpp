@@ -35,6 +35,7 @@
 #include "templates/faction/Factions.h"
 #include "server/zone/objects/player/FactionStatus.h"
 #include "server/chat/ChatManager.h"
+#include "server/zone/objects/tangible/wearables/WearableContainerObject.h"
 
 void TangibleObjectImplementation::initializeTransientMembers() {
 	SceneObjectImplementation::initializeTransientMembers();
@@ -153,7 +154,9 @@ void TangibleObjectImplementation::sendBaselinesTo(SceneObject* player) {
 	BaseMessage* tano6 = new TangibleObjectMessage6(thisPointer);
 	player->sendMessage(tano6);
 
-	if (player->isPlayerCreature())
+	ManagedReference<SceneObject*> parent = getParentRecursively(SceneObjectType::PLAYERCREATURE);
+
+	if (player->isPlayerCreature() && parent == nullptr)
 		sendPvpStatusTo(player->asCreatureObject());
 }
 
@@ -174,9 +177,14 @@ void TangibleObjectImplementation::setFactionStatus(int status) {
 
 		uint32 pvpStatusBitmask = creature->getPvpStatusBitmask();
 		uint32 oldStatusBitmask = pvpStatusBitmask;
+		bool covertOvert = ConfigManager::instance()->useCovertOvertSystem();
 
 		if (factionStatus == FactionStatus::COVERT) {
-			creature->sendSystemMessage("@faction_recruiter:covert_complete");
+			if (covertOvert) {
+				creature->sendSystemMessage("Your faction affiliation has now been hidden from others.");
+			} else {
+				creature->sendSystemMessage("@faction_recruiter:covert_complete");
+			}
 
 			if (pvpStatusBitmask & CreatureFlag::OVERT)
 				pvpStatusBitmask &= ~CreatureFlag::OVERT;
@@ -196,7 +204,11 @@ void TangibleObjectImplementation::setFactionStatus(int status) {
 				creature->addCooldown("declare_overt_cooldown", cooldown * 1000);
 				pvpStatusBitmask |= CreatureFlag::OVERT;
 
-				creature->sendSystemMessage("@faction_recruiter:overt_complete");
+				if (covertOvert) {
+					creature->sendSystemMessage("You successfully declare overt faction status. You may now be attacked by opposing faction members.");
+				} else {
+					creature->sendSystemMessage("@faction_recruiter:overt_complete");
+				}
 			}
 
 			if (ConfigManager::instance()->isPvpBroadcastChannelEnabled()) {
@@ -214,8 +226,16 @@ void TangibleObjectImplementation::setFactionStatus(int status) {
 			if (pvpStatusBitmask & CreatureFlag::OVERT)
 				pvpStatusBitmask &= ~CreatureFlag::OVERT;
 
-			if (creature->getFaction() != 0)
-				creature->sendSystemMessage("@faction_recruiter:on_leave_complete");
+			if (creature->getFaction() != 0) {
+				if (covertOvert) {
+					StringIdChatParameter resignation("faction_recruiter", "resign_complete");
+					resignation.setTO(creature->getFaction() == Factions::FACTIONREBEL ? "Rebel" : "Imperial");
+
+					creature->sendSystemMessage(resignation); // Your resignation from the %TO faction is complete.
+				} else {
+					creature->sendSystemMessage("@faction_recruiter:on_leave_complete");
+				}
+			}
 		}
 
 		if (oldStatusBitmask != CreatureFlag::NONE)
@@ -276,11 +296,32 @@ void TangibleObjectImplementation::sendPvpStatusTo(CreatureObject* player) {
 			newPvpStatusBitmask &= ~CreatureFlag::TEF;
 	}
 
-	if (getFutureFactionStatus() == FactionStatus::OVERT)
+	int thisFactionStatus = getFactionStatus();
+	int thisFutureStatus = getFutureFactionStatus();
+
+	if (thisFutureStatus == FactionStatus::OVERT)
 		newPvpStatusBitmask |= CreatureFlag::WILLBEDECLARED;
 
-	if (getFactionStatus() == FactionStatus::OVERT && getFutureFactionStatus() == FactionStatus::COVERT)
+	if (thisFactionStatus == FactionStatus::OVERT && thisFutureStatus == FactionStatus::COVERT)
 		newPvpStatusBitmask |= CreatureFlag::WASDECLARED;
+
+	if (isAiAgent() && !isPet() && getFaction() > 0 && player->isPlayerCreature() && player->getFaction() > 0 && getFaction() != player->getFaction() && thisFactionStatus >= FactionStatus::COVERT) {
+		if (ConfigManager::instance()->useCovertOvertSystem()) {
+			PlayerObject* ghost = player->getPlayerObject();
+
+			if (player->getFactionStatus() == FactionStatus::OVERT || (ghost != nullptr && ghost->hasGcwTef())) {
+				newPvpStatusBitmask |= CreatureFlag::ENEMY;
+			} else if (newPvpStatusBitmask & CreatureFlag::ENEMY) {
+				newPvpStatusBitmask &= ~CreatureFlag::ENEMY;
+			}
+		} else {
+			if (player->getFactionStatus() >= FactionStatus::COVERT) {
+				newPvpStatusBitmask |= CreatureFlag::ENEMY;
+			} else if (newPvpStatusBitmask & CreatureFlag::ENEMY) {
+				newPvpStatusBitmask &= ~CreatureFlag::ENEMY;
+			}
+		}
+	}
 
 	BaseMessage* pvp = new UpdatePVPStatusMessage(asTangibleObject(), player, newPvpStatusBitmask);
 	player->sendMessage(pvp);
@@ -599,6 +640,25 @@ void TangibleObjectImplementation::fillAttributeList(AttributeListMessage* alm, 
 		alm->insertAttribute("contents", contentsString);
 	} else {
 		alm->insertAttribute("volume", volume);
+	}
+
+	if (isWearableObject() || isWearableContainerObject()) {
+		int remainingSockets = 0;
+
+		if (isWearableObject()) {
+			WearableObject* wearable = cast<WearableObject*>(asTangibleObject());
+
+			if (wearable != nullptr)
+				remainingSockets = wearable->getRemainingSockets();
+		} else {
+			WearableContainerObject* container = cast<WearableContainerObject*>(asTangibleObject());
+
+			if (container != nullptr)
+				remainingSockets = container->getRemainingSockets();
+		}
+
+		if (remainingSockets > 0)
+			alm->insertAttribute("sockets", remainingSockets);
 	}
 
 	if (!craftersName.isEmpty()) {

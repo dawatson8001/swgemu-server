@@ -48,6 +48,7 @@
 #include "server/chat/room/ChatRoom.h"
 #include "server/chat/room/ChatRoomMap.h"
 #include "templates/string/StringFile.h"
+#include "templates/faction/Factions.h"
 
 ChatManagerImplementation::ChatManagerImplementation(ZoneServer* serv, int initsize) : ManagedServiceImplementation() {
 	server = serv;
@@ -1094,6 +1095,8 @@ void ChatManagerImplementation::broadcastChatMessage(CreatureObject* sourceCreat
 	if (specialRange != -1)
 		range = specialRange;
 
+	bool noRecentFine = sourceCreature->checkCooldownRecovery("imperial_spatial_fine");
+
 	try {
 		for (int i = 0; i < closeEntryObjects.size(); ++i) {
 			SceneObject* object = static_cast<SceneObject*>(closeEntryObjects.get(i));
@@ -1101,7 +1104,9 @@ void ChatManagerImplementation::broadcastChatMessage(CreatureObject* sourceCreat
 			if (object == nullptr)
 				continue;
 
-			if (!sourceCreature->isInRange(object, range))
+			int distSquared = sourceCreature->getWorldPosition().squaredDistanceTo(object->getWorldPosition());
+
+			if ((range * range) < distSquared)
 				continue;
 
 			CreatureObject* creature = cast<CreatureObject*>(object);
@@ -1119,6 +1124,40 @@ void ChatManagerImplementation::broadcastChatMessage(CreatureObject* sourceCreat
 				Locker clocker(pet, sourceCreature);
 				petManager->handleChat(sourceCreature, pet, message.toString());
 				continue;
+			}
+
+			if (noRecentFine && creature->isAiAgent() && creature->getFaction() == Factions::FACTIONIMPERIAL && (20 * 20) >= distSquared && creature->getObserverCount(ObserverEventType::FACTIONCHAT)) {
+				String msgString = message.toString().toLowerCase();
+
+				if (!msgString.contains("jedi"))
+					continue;
+
+				noRecentFine = false;
+
+				Locker slock(sourceCreature);
+
+				// Check for fine only once every 5s
+				sourceCreature->updateCooldownTimer("imperial_spatial_fine", 5000);
+				slock.release();
+
+				SortedVector<ManagedReference<Observer*> > observers = creature->getObservers(ObserverEventType::FACTIONCHAT);
+
+				if (observers.size() > 0) {
+					Reference<CreatureObject*> sourceCreo = sourceCreature;
+					Reference<CreatureObject*> observingCreo = creature;
+					Reference<Observer*> observer = observers.get(0);
+
+					Core::getTaskManager()->executeTask([observingCreo, sourceCreo, observer] () {
+						if (sourceCreo == nullptr || observingCreo == nullptr || observer == nullptr)
+							return;
+
+						Locker locker(observingCreo);
+						Locker clocker(sourceCreo, observingCreo);
+
+						if (observer->notifyObserverEvent(ObserverEventType::FACTIONCHAT, observingCreo, sourceCreo, 0) == 1)
+							observingCreo->dropObserver(ObserverEventType::FACTIONCHAT, observer);
+					}, "NotifyFactionChatObserverLambda");
+				}
 			}
 
 			PlayerObject* ghost = creature->getPlayerObject();

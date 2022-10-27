@@ -94,6 +94,7 @@
 #include "server/zone/managers/crafting/schematicmap/SchematicMap.h"
 #include "server/zone/managers/director/ScreenPlayObserver.h"
 #include "server/zone/managers/resource/ResourceManager.h"
+#include "server/zone/managers/gcw/observers/SquadObserver.h"
 
 int DirectorManager::DEBUG_MODE = 0;
 int DirectorManager::ERROR_CODE = NO_ERROR;
@@ -446,6 +447,7 @@ void DirectorManager::initializeLuaEngine(Lua* luaEngine) {
 	luaEngine->registerFunction("spawnActiveArea", spawnActiveArea);
 	luaEngine->registerFunction("spawnBuilding", spawnBuilding);
 	luaEngine->registerFunction("spawnSecurityPatrol", spawnSecurityPatrol);
+	luaEngine->registerFunction("despawnSecurityPatrol", despawnSecurityPatrol);
 	luaEngine->registerFunction("destroyBuilding", destroyBuilding);
 	luaEngine->registerFunction("getSceneObject", getSceneObject);
 	luaEngine->registerFunction("getCreatureObject", getCreatureObject);
@@ -500,6 +502,7 @@ void DirectorManager::initializeLuaEngine(Lua* luaEngine) {
 	luaEngine->registerFunction("setQuestStatus", setQuestStatus);
 	luaEngine->registerFunction("getQuestStatus", getQuestStatus);
 	luaEngine->registerFunction("removeQuestStatus", removeQuestStatus);
+	luaEngine->registerFunction("setCoaWinningFaction", setCoaWinningFaction);
 	luaEngine->registerFunction("getControllingFaction", getControllingFaction);
 	luaEngine->registerFunction("getImperialScore", getImperialScore);
 	luaEngine->registerFunction("getRebelScore", getRebelScore);
@@ -522,9 +525,11 @@ void DirectorManager::initializeLuaEngine(Lua* luaEngine) {
 	luaEngine->registerFunction("getQuestTasks", getQuestTasks);
 	luaEngine->registerFunction("broadcastToGalaxy", broadcastToGalaxy);
 	luaEngine->registerFunction("getWorldFloor", getWorldFloor);
+	luaEngine->registerFunction("useCovertOvert", useCovertOvert);
 
 	//Navigation Mesh Management
 	luaEngine->registerFunction("createNavMesh", createNavMesh);
+	luaEngine->registerFunction("destroyNavMesh", destroyNavMesh);
 
 	luaEngine->setGlobalInt("POSITIONCHANGED", ObserverEventType::POSITIONCHANGED);
 	luaEngine->setGlobalInt("CLOSECONTAINER", ObserverEventType::CLOSECONTAINER);
@@ -672,6 +677,10 @@ void DirectorManager::initializeLuaEngine(Lua* luaEngine) {
 	luaEngine->setGlobalLong("FACTIONNEUTRAL", Factions::FACTIONNEUTRAL);
 	luaEngine->setGlobalLong("FACTIONIMPERIAL", Factions::FACTIONIMPERIAL);
 	luaEngine->setGlobalLong("FACTIONREBEL", Factions::FACTIONREBEL);
+
+	luaEngine->setGlobalInt("ONLEAVE", FactionStatus::ONLEAVE);
+	luaEngine->setGlobalInt("COVERT", FactionStatus::COVERT);
+	luaEngine->setGlobalInt("OVERT", FactionStatus::OVERT);
 
 	// AI/creature bitmasks
 	luaEngine->setGlobalInt("AI_NPC", CreatureFlag::NPC);
@@ -2534,7 +2543,7 @@ int DirectorManager::spawnEventMobile(lua_State* L) {
 int DirectorManager::spawnSecurityPatrol(lua_State* L) {
 	int numberOfArguments = lua_gettop(L);
 
-	if (numberOfArguments != 5) {
+	if (numberOfArguments != 9) {
 		String err = "incorrect number of arguments passed to DirectorManager::spawnSecurityPatrol";
 		printTraceError(L, err);
 		ERROR_CODE = INCORRECT_ARGUMENTS;
@@ -2543,19 +2552,24 @@ int DirectorManager::spawnSecurityPatrol(lua_State* L) {
 
 	bool attackable = true;
 	bool stationary = false;
-	uint64 parentID = 0;
-	String patrol;
 
 	attackable = lua_toboolean(L, -1);
 	stationary = lua_toboolean(L, -2);
-	parentID = lua_tointeger(L, -3);
-	patrol = lua_tostring(L, -4);
-	CreatureObject* creature = (CreatureObject*)lua_touserdata(L, -5);
 
-	if (creature == nullptr)
+	int direction = lua_tointeger(L, -3);
+	uint64 parentID = lua_tointeger(L, -4);
+	float y = lua_tonumber(L, -5);
+	float z = lua_tonumber(L, -6);
+	float x = lua_tonumber(L, -7);
+	String planet = lua_tostring(L, -8);
+	String patrol = lua_tostring(L, -9);
+
+	ZoneServer* zoneServer = ServerCore::getZoneServer();
+
+	if (zoneServer == nullptr)
 		return 0;
 
-	Zone* zone = creature->getZone();
+	Zone* zone = zoneServer->getZone(planet);
 
 	if (zone == nullptr)
 		return 0;
@@ -2565,12 +2579,41 @@ int DirectorManager::spawnSecurityPatrol(lua_State* L) {
 	if (gcwMan == nullptr)
 		return 0;
 
-	Vector3 location(creature->getPositionX(), creature->getPositionY(), creature->getPositionZ());
-	float direction = creature->getDirection()->getRadians();
+	Vector3 location(x, y, z);
 
-	gcwMan->spawnSecurityPatrol(nullptr, patrol, location, parentID, direction, stationary, attackable);
+	uint64 squadLeaderID = gcwMan->spawnSecurityPatrol(nullptr, patrol, location, parentID, direction, stationary, attackable);
+
+	lua_pushinteger(L, squadLeaderID);
 
 	return 1;
+}
+
+int DirectorManager::despawnSecurityPatrol(lua_State* L) {
+	int numberOfArguments = lua_gettop(L);
+
+	if (numberOfArguments != 1) {
+		String err = "incorrect number of arguments passed to DirectorManager::despawnSecurityPatrol";
+		printTraceError(L, err);
+		ERROR_CODE = INCORRECT_ARGUMENTS;
+		return 0;
+	}
+
+	CreatureObject* creature = (CreatureObject*)lua_touserdata(L, -1);
+
+	if (creature == nullptr)
+		return 0;
+
+	SortedVector<ManagedReference<Observer* > > observers = creature->getObservers(ObserverEventType::SQUAD);
+
+	if (observers.size() > 0) {
+		ManagedReference<SquadObserver*> squadObserver = cast<SquadObserver*>(observers.get(0).get());
+
+		if (squadObserver != nullptr) {
+			squadObserver->despawnSquad();
+		}
+	}
+
+	return 0;
 }
 
 int DirectorManager::spawnBuilding(lua_State* L) {
@@ -3654,6 +3697,26 @@ int DirectorManager::removeQuestStatus(lua_State* L) {
 	return 0;
 }
 
+int DirectorManager::setCoaWinningFaction(lua_State* L) {
+	if (checkArgumentCount(L, 1) == 1) {
+		String err = "incorrect number of arguments passed to DirectorManager::setCoaWinningFaction";
+		printTraceError(L, err);
+		ERROR_CODE = INCORRECT_ARGUMENTS;
+		return 0;
+	}
+
+	uint32 faction = lua_tointeger(L, -1);
+
+	ManagedReference<PlayerManager*> playerManager = ServerCore::getZoneServer()->getPlayerManager();
+
+	if (playerManager == nullptr)
+		return 0;
+
+	playerManager->setCoaWinningFaction(faction);
+
+	return 0;
+}
+
 int DirectorManager::getControllingFaction(lua_State* L) {
 	if (checkArgumentCount(L, 1) == 1) {
 		String err = "incorrect number of arguments passed to DirectorManager::getControllingFaction";
@@ -3921,7 +3984,6 @@ void DirectorManager::removeQuestVectorMap(const String& keyString) {
 }
 
 int DirectorManager::createNavMesh(lua_State *L) {
-
     if (checkArgumentCount(L, 6) == 1) {
         String err = "incorrect number of arguments passed to DirectorManager::createNavMesh";
         printTraceError(L, err);
@@ -3961,6 +4023,35 @@ int DirectorManager::createNavMesh(lua_State *L) {
     }, "create_lua_navmesh", 1000);
     lua_pushlightuserdata(L, navArea);
     return 1;
+}
+
+int DirectorManager::destroyNavMesh(lua_State *L) {
+	if (checkArgumentCount(L, 1) == 1) {
+        String err = "incorrect number of arguments passed to DirectorManager::destroyNavMesh. Proper arguments is: (navmeshID)";
+        printTraceError(L, err);
+        ERROR_CODE = INCORRECT_ARGUMENTS;
+        return 0;
+    }
+
+	uint64 navMeshID = lua_tointeger(L, -1);
+
+	ZoneServer* zoneServer = ServerCore::getZoneServer();
+
+	if (zoneServer == nullptr)
+		return 0;
+
+	ManagedReference<NavArea*> navMesh = zoneServer->getObject(navMeshID).castTo<NavArea*>();
+
+	if (navMesh != nullptr) {
+		Locker locker(navMesh);
+
+		navMesh->destroyObjectFromWorld(true);
+
+		if (navMesh->isPersistent())
+			navMesh->destroyObjectFromDatabase(true);
+	}
+
+	return 0;
 }
 
 int DirectorManager::creatureTemplateExists(lua_State* L) {
@@ -4347,7 +4438,11 @@ int DirectorManager::getQuestTasks(lua_State* L) {
 
 	Reference<QuestTasks*> questTasks = playerManager->getQuestTasks(questCrc);
 
-	lua_pushlightuserdata(L, questTasks.get());
+	if (questTasks) {
+		lua_pushlightuserdata(L, questTasks.get());
+	} else {
+		lua_pushnil(L);
+	}
 	return 1;
 }
 
@@ -4403,6 +4498,14 @@ int DirectorManager::getWorldFloor(lua_State* L) {
 	float z = CollisionManager::getWorldFloorCollision(x, y, zone, false);
 
 	lua_pushnumber(L, z);
+
+	return 1;
+}
+
+int DirectorManager::useCovertOvert(lua_State* L) {
+	bool result = ConfigManager::instance()->useCovertOvertSystem();
+
+	lua_pushboolean(L, result);
 
 	return 1;
 }

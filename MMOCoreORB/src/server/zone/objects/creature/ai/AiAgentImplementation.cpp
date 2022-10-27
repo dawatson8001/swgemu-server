@@ -60,6 +60,7 @@
 #include "templates/SharedObjectTemplate.h"
 #include "server/zone/objects/player/FactionStatus.h"
 #include "templates/params/ObserverEventType.h"
+#include "server/zone/managers/gcw/observers/ImperialChatObserver.h"
 #include "server/zone/objects/scene/variables/DeltaVector.h"
 #include "server/zone/objects/scene/WorldCoordinates.h"
 #include "server/zone/objects/tangible/threat/ThreatMap.h"
@@ -265,6 +266,13 @@ void AiAgentImplementation::loadTemplateData(CreatureTemplate* templateData) {
 
 	if (!factionString.isEmpty() && (factionString == "imperial" || factionString == "rebel")) {
 		setFaction(factionString.hashCode());
+
+		if (faction == Factions::FACTIONIMPERIAL) {
+			ImperialChatObserver* chatObserver = new ImperialChatObserver();
+
+			if (chatObserver != nullptr)
+				registerObserver(ObserverEventType::FACTIONCHAT, chatObserver);
+		}
 	}
 
 	if (!loadedOutfit) {
@@ -1587,15 +1595,16 @@ void AiAgentImplementation::clearCombatState(bool clearDefenders) {
 void AiAgentImplementation::notifyInsert(QuadTreeEntry* entry) {
 	CreatureObjectImplementation::notifyInsert(entry);
 
-	SceneObject* scno = static_cast<SceneObject*>( entry);
-
-	if (scno == asAiAgent())
-		return;
+	SceneObject* scno = static_cast<SceneObject*>(entry);
 
 	if (scno == nullptr)
 		return;
 
+	if (scno == asAiAgent() || !scno->isCreatureObject())
+		return;
+
 	CreatureObject* creo = scno->asCreatureObject();
+
 	if (creo != nullptr && !creo->isInvisible() && creo->isPlayerCreature()) {
 		int newValue = (int) numberOfPlayersInRange.increment();
 		activateMovementEvent();
@@ -1685,12 +1694,15 @@ void AiAgentImplementation::sendBaselinesTo(SceneObject* player) {
 
 void AiAgentImplementation::notifyDespawn(Zone* zone) {
 	cancelMovementEvent();
+	cancelThinkEvent();
 
+#ifdef SHOW_NEXT_POSITION
 	for (int i = 0; i < movementMarkers.size(); ++i) {
 		ManagedReference<SceneObject*> marker = movementMarkers.get(i);
 		Locker clocker(marker, asAiAgent());
 		marker->destroyObjectFromWorld(false);
 	}
+#endif
 
 	SceneObject* creatureInventory = asAiAgent()->getSlottedObject("inventory");
 
@@ -1737,10 +1749,6 @@ void AiAgentImplementation::notifyDespawn(Zone* zone) {
 	setTargetObject(nullptr);
 	setFollowObject(nullptr);
 
-	//asAiAgent()->printReferenceHolders();
-
-	//printf("%d ref count\n", asAiAgent()->getReferenceCount());
-
 	ManagedReference<SceneObject*> home = homeObject.get();
 
 	if (home != nullptr) {
@@ -1749,6 +1757,9 @@ void AiAgentImplementation::notifyDespawn(Zone* zone) {
 	}
 
 	notifyObservers(ObserverEventType::CREATUREDESPAWNED);
+
+	//printReferenceHolders();
+	//info(true) << "ID: " << getObjectID() << " Reference Count: " << getReferenceCount();
 
 	if (respawnTimer <= 0) {
 		return;
@@ -1796,6 +1807,7 @@ void AiAgentImplementation::notifyDissapear(QuadTreeEntry* entry) {
 
 	if (scno->isPlayerCreature()) {
 		CreatureObject* creo = scno->asCreatureObject();
+
 		if (!creo->isInvisible()) {
 			int32 newValue = (int32) numberOfPlayersInRange.decrement();
 
@@ -1820,26 +1832,32 @@ void AiAgentImplementation::notifyDissapear(QuadTreeEntry* entry) {
 			} else if (newValue < 0) {
 				error("numberOfPlayersInRange below 0");
 			}
-
-			activateMovementEvent();
 		}
 	}
 }
 
 void AiAgentImplementation::activateRecovery() {
+	ZoneServer* zoneServer = getZoneServer();
+
+	if (zoneServer != nullptr && zoneServer->isServerShuttingDown()) {
+		cancelThinkEvent();
+
+		return;
+	}
+
+	Locker tLock(&thinkEventMutex);
+
 	if (thinkEvent == nullptr) {
 		thinkEvent = new AiThinkEvent(asAiAgent());
 
 		thinkEvent->schedule(2000);
-	}
-
-	if (!thinkEvent->isScheduled())
+	} else if (!thinkEvent->isScheduled())
 		thinkEvent->schedule(2000);
 }
 
 void AiAgentImplementation::activatePostureRecovery() {
 	// Handle AI being Knocked down
-	if (isKnockedDown() && !hasPostureChangeDelay()) {
+	if (isKnockedDown() && !hasPostureChangeDelay() && (!isNpc() || System::random(100) < 40)) {
 		enqueueCommand(STRING_HASHCODE("stand"), 0, 0, "");
 		return;
 	}
@@ -2020,8 +2038,6 @@ bool AiAgentImplementation::findNextPosition(float maxDistance, bool walk) {
 	float updateTicks = float(UPDATEMOVEMENTINTERVAL) / 1000.f;
 	float maxSpeed = newSpeed * updateTicks; // maxSpeed is the distance able to travel in time updateTicks
 
-	updateLocomotion();
-
 	Vector3 currentPosition = getPosition();
 	Vector3 currentWorldPos = getWorldPosition();
 	PatrolPoint endMovementPosition = getNextPosition();
@@ -2030,9 +2046,14 @@ bool AiAgentImplementation::findNextPosition(float maxDistance, bool walk) {
 	float endDistanceSq = (endDistDiff.getX() * endDistDiff.getX() + endDistDiff.getY() * endDistDiff.getY());
 	float maxSquared = Math::max(0.1f, maxDistance * maxDistance);
 
-	if (endDistanceSq <= maxSquared) {
-		//info(true) << "findNextPosition -- ID: " <<  getObjectID() << " endDistSquared = " << endDistanceSq << "  maxSquared = " << maxSquared << "   For:  " << getObjectID();
+	float endDistZSq = endDistDiff.getZ() * endDistDiff.getZ();
+	endDistZSq = Math::getPrecision(endDistZSq, 2);
 
+#ifdef DEBUG_FINDNEXTPOSITION
+	info(true) << "findNextPosition -- ID: " <<  getObjectID() << " endDistSquared = " << endDistanceSq << "  maxSquared = " << maxSquared << " endDistDiff Z = " << endDistZSq << " Max Distance = " << maxDistance;
+#endif
+
+	if (endDistanceSq <= maxSquared && fabs(endDistZSq) < (maxDistance + 1.f)) {
 		currentFoundPath = nullptr;
 
 		if (patrolPoints.size() > 0)
@@ -2041,8 +2062,25 @@ bool AiAgentImplementation::findNextPosition(float maxDistance, bool walk) {
 		if (movementState != AiAgent::FOLLOWING)
 			notifyObservers(ObserverEventType::DESTINATIONREACHED);
 
+		setCurrentSpeed(0.f);
+
 		return false;
 	}
+
+	float currentSpeed = getCurrentSpeed();
+
+	// Handle speed up and slow down
+	if ((((currentSpeed * currentSpeed) * maxSquared) > endDistanceSq) && newSpeed > 0.4f) {
+		newSpeed = Math::max(0.2f, (currentSpeed - 0.4f));
+	} else if (currentSpeed < newSpeed) {
+		float speedDiff = newSpeed - currentSpeed;
+
+		if (speedDiff > 0.4f)
+			newSpeed = currentSpeed + 0.4f;
+	}
+
+	setCurrentSpeed(newSpeed);
+	updateLocomotion();
 
 #ifdef DEBUG_FINDNEXTPOSITION
 	printf("--- !!!!    findNextPosition -- Start -- !!!! ----- \n");
@@ -2359,39 +2397,29 @@ float AiAgentImplementation::getWorldZ(const Vector3& position) {
 
 void AiAgentImplementation::doMovement() {
 	try {
-		//info("doMovement", true);
-		Reference<Behavior*> rootBehavior = getBehaviorTree(BehaviorTreeSlot::NONE);
-		assert(rootBehavior != nullptr);
-
-		// Do pre-checks (these should remain hard-coded)
-		if (asAiAgent()->isDead() || asAiAgent()->isIncapacitated() || (asAiAgent()->getZoneUnsafe() == nullptr) || !(getOptionsBitmask() & OptionBitmask::AIENABLED)) {
+		// Check for AIENABLED flag. Other Conditions are checked in Behavior::checkConditions
+		if (!(getOptionsBitmask() & OptionBitmask::AIENABLED)) {
 			cancelMovementEvent();
 			setFollowObject(nullptr);
 			return;
 		}
 
+		Reference<Behavior*> rootBehavior = getBehaviorTree(BehaviorTreeSlot::NONE);
+		assert(rootBehavior != nullptr);
+
+#ifdef DEBUG_AI
 		Time startTime;
 		startTime.updateToCurrentTime();
 
-		//if (isWaiting())
-		//	stopWaiting();
-
-#ifdef DEBUG_AI
 		if (peekBlackboard("aiDebug") && readBlackboard("aiDebug") == true)
 			info("Performing root behavior: " + rootBehavior->print(), true);
 #endif // DEBUG_AI
+
 		// activate AI
 		Behavior::Status actionStatus = rootBehavior->doAction(asAiAgent());
 
 		if (actionStatus == Behavior::RUNNING)
 			popRunningChain(); // don't keep root in the running chain
-
-		//if (actionStatus == Behavior::RUNNING) {
-		//	std::cout << "Running chain: (" << runningChain.size() << ")" << std::endl;
-		//	for (int i = 0; i < runningChain.size(); ++i) {
-		//		std::cout << "0x" << std::hex << runningChain.get(i) << std::endl;;
-		//	}
-		//}
 
 #ifdef DEBUG_AI
 		if (peekBlackboard("aiDebug") && readBlackboard("aiDebug") == true)
@@ -2746,8 +2774,8 @@ int AiAgentImplementation::setDestination() {
 
 		break;
 	case AiAgent::WATCHING:
-		if (followCopy != nullptr)
-			faceObject(followCopy, true);
+		if ((getCreatureBitmask() & CreatureFlag::ESCORT) && followCopy != nullptr)
+			setNextPosition(followCopy->getPositionX(), followCopy->getPositionZ(), followCopy->getPositionY(), followCopy->getParent().get().castTo<CellObject*>());
 
 		break;
 	case AiAgent::STALKING:
@@ -3058,7 +3086,9 @@ void AiAgentImplementation::activateMovementEvent(bool reschedule) {
 	bool alwaysActive = false;
 #endif // DEBUG_AI
 
-	if (!alwaysActive && numberOfPlayersInRange.get() <= 0 && getFollowObject().get() == nullptr && !isRetreating()) {
+	ZoneServer* zoneServer = getZoneServer();
+
+	if ((!alwaysActive && numberOfPlayersInRange.get() <= 0 && getFollowObject().get() == nullptr && !isRetreating()) || zoneServer == nullptr || zoneServer->isServerShuttingDown()) {
 		cancelMovementEvent();
 		return;
 	}
@@ -3088,9 +3118,25 @@ void AiAgentImplementation::cancelMovementEvent() {
 		return;
 	}
 
-	moveEvent->cancel();
+	if (moveEvent->isScheduled())
+		moveEvent->cancel();
+
 	moveEvent->clearCreatureObject();
 	moveEvent = nullptr;
+}
+
+void AiAgentImplementation::cancelThinkEvent() {
+	Locker locker(&thinkEventMutex);
+
+	if (thinkEvent == nullptr) {
+		return;
+	}
+
+	if (thinkEvent->isScheduled())
+		thinkEvent->cancel();
+
+	thinkEvent->clearAgentObject();
+	thinkEvent = nullptr;
 }
 
 void AiAgentImplementation::setNextPosition(float x, float z, float y, CellObject* cell) {
@@ -3574,9 +3620,30 @@ bool AiAgentImplementation::isAggressive(CreatureObject* target) {
 			return true;
 		}
 
-		// this is the same thing, but ensures that if the target is a player, that they aren't on leave
-		if (targetIsPlayer && target->getFactionStatus() != FactionStatus::ONLEAVE) {
-			return true;
+		if (targetIsPlayer) {
+			bool covertOvert = ConfigManager::instance()->useCovertOvertSystem();
+
+			if (covertOvert) {
+				PlayerObject* ghost = target->getPlayerObject();
+
+				if (ghost == nullptr)
+					return false;
+
+				uint32 targetStatus = target->getFactionStatus();
+				bool gcwTef = ghost->hasGcwTef();
+
+				if (!gcwTef && targetStatus == FactionStatus::COVERT)
+					return false;
+
+				if (targetStatus == FactionStatus::OVERT || gcwTef) {
+					return true;
+				}
+			} else {
+				// this is the same thing, but ensures that if the target is a player, that they aren't on leave
+				if (target->getFactionStatus() != FactionStatus::ONLEAVE) {
+					return true;
+				}
+			}
 		}
 	}
 
@@ -3682,8 +3749,12 @@ bool AiAgentImplementation::isAttackableBy(TangibleObject* object) {
 	uint32 thisFaction = getFaction();
 	uint32 tanoFaction = object->getFaction();
 
-	if (thisFaction != 0 && tanoFaction != 0) {
+	if (thisFaction != 0 || tanoFaction != 0) {
 		if (thisFaction == tanoFaction) {
+			return false;
+		}
+
+		if (thisFaction == 0 && tanoFaction != 0) {
 			return false;
 		}
 	}

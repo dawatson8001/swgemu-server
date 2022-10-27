@@ -573,7 +573,7 @@ StructureObject* StructureManager::placeStructure(CreatureObject* creature,
 		ghost->addOwnedStructure(structureObject);
 	}
 
-	if(structureObject->isTurret() || structureObject->isMinefield()){
+	if (structureObject->isTurret() || structureObject->isMinefield() || structureObject->isScanner()){
 		structureObject->setFaction(creature->getFaction());
 	}
 
@@ -1093,6 +1093,7 @@ void StructureManager::promptNameStructure(CreatureObject* creature,
 	}
 	inputBox->setPromptTitle("@base_player:set_name"); //Set Name
 	inputBox->setPromptText("@player_structure:structure_name_prompt"); //Structure Name:
+	inputBox->setDefaultInput(structure->getCustomObjectName().toString());
 	inputBox->setMaxInputSize(128);
 	inputBox->setCallback(new NameStructureSuiCallback(server));
 	inputBox->setForceCloseDistance(32);

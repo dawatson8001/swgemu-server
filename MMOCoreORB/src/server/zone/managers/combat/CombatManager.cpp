@@ -273,6 +273,14 @@ int CombatManager::doCombatAction(CreatureObject* attacker, WeaponObject* weapon
 		broadcastCombatAction(attacker, weapon, targetDefenders, data);
 	}
 
+	int defenderSize = targetDefenders.size();
+
+	for (int i = defenderSize - 1; i >= 0; i--) {
+		DefenderHitList* list = targetDefenders.get(i);
+
+		delete list;
+	}
+
 	// Update PvP TEF Duration
 	if (shouldGcwCrackdownTef || shouldGcwTef || shouldBhTef) {
 		ManagedReference<CreatureObject*> attackingCreature = nullptr;
@@ -358,6 +366,17 @@ int CombatManager::doTargetCombatAction(CreatureObject* attacker, WeaponObject* 
 
 		// No Accuracy / Defense Calculation for TanO defender. setHit to HIT value.
 		hitList->setHit(HIT);
+
+		bool covertOvert = ConfigManager::instance()->useCovertOvertSystem();
+		uint32 tanoFaction = tano->getFaction();
+
+		if (covertOvert && attacker->isPlayerCreature() && tanoFaction > 0 && attacker->getFaction() != tanoFaction && attacker->getFactionStatus() >= FactionStatus::COVERT) {
+			PlayerObject* ghost = attacker->getPlayerObject();
+
+			if (ghost != nullptr) {
+				ghost->updateLastCombatActionTimestamp(false, true, false);
+			}
+		}
 	}
 
 	if (damage > 0 && tano->isAiAgent()) {
@@ -512,6 +531,14 @@ int CombatManager::doCombatAction(TangibleObject* attacker, WeaponObject* weapon
 
 	// Send out CombatSpam broadcast now that attack is complete. TanO attackers CombatAction packets are sent out in tanoTargetCombatAction
 	finalCombatSpam(attacker, weapon, targetDefenders, data);
+
+	int defenderSize = targetDefenders.size();
+
+	for (int i = defenderSize - 1; i >= 0; i--) {
+		DefenderHitList* list = targetDefenders.get(i);
+
+		delete list;
+	}
 
 	return damage;
 }
@@ -703,18 +730,6 @@ void CombatManager::finalCombatSpam(TangibleObject* attacker, WeaponObject* weap
 		return;
 	}
 
-	CloseObjectsVector* vec = (CloseObjectsVector*)attacker->getCloseObjects();
-	SortedVector<QuadTreeEntry*> closeObjects;
-
-	if (vec != nullptr) {
-		closeObjects.removeAll(vec->size(), 10);
-		vec->safeCopyReceiversTo(closeObjects, CloseObjectsVector::PLAYERTYPE);
-	} else {
-#ifdef COV_DEBUG
-		info("Null closeobjects vector in CombatManager::finalCombatSpam", true);
-#endif
-		zone->getInRangeObjects(attacker->getWorldPositionX(), attacker->getWorldPositionY(), COMBAT_SPAM_RANGE, &closeObjects, true);
-	}
 
 	for (int i = 0; i < targetDefenders.size(); ++i) {
 		DefenderHitList* hitList = targetDefenders.get(i);
@@ -1272,9 +1287,11 @@ float CombatManager::applyDamageModifiers(CreatureObject* attacker, WeaponObject
 			damage += attacker->getSkillMod(weaponDamageMods->get(i));
 		}
 
-		if (weapon->getAttackType() == SharedWeaponObjectTemplate::MELEEATTACK)
+		int attackType = weapon->getAttackType();
+
+		if (attackType == SharedWeaponObjectTemplate::MELEEATTACK) // Berserk Bonus
 			damage += attacker->getSkillMod("private_melee_damage_bonus");
-		if (weapon->getAttackType() == SharedWeaponObjectTemplate::RANGEDATTACK)
+		if (attackType == SharedWeaponObjectTemplate::RANGEDATTACK)
 			damage += attacker->getSkillMod("private_ranged_damage_bonus");
 	}
 
@@ -1328,9 +1345,9 @@ int CombatManager::calculatePoolsToDamage(int poolsToDamage) const {
 	if (poolsToDamage & RANDOM) {
 		int rand = System::random(100);
 
-		if (rand < 50) {
+		if (rand < 70) {
 			poolsToDamage = HEALTH;
-		} else if (rand < 85) {
+		} else if (rand < 95) {
 			poolsToDamage = ACTION;
 		} else {
 			poolsToDamage = MIND;
@@ -1368,10 +1385,20 @@ int CombatManager::applyDamage(TangibleObject* attacker, WeaponObject* weapon, C
 	int numberOfPoolsDamaged = (healthDamaged ? 1 : 0) + (actionDamaged ? 1 : 0) + (mindDamaged ? 1 : 0);
 	Vector<int> poolsToWound;
 
+#ifdef DEBUG_SPILL_DAMAGE
+	StringBuffer spillOverDebug;
+	spillOverDebug << " ========== Spill Over Debug ==========\n";
+#endif
+
 	int numSpillOverPools = 3 - numberOfPoolsDamaged;
 
-	float spillMultPerPool = (0.1f * numSpillOverPools) / Math::max(numberOfPoolsDamaged, 1);
+	float spillMultPerPool = (0.0834f * numSpillOverPools) / Math::max(numberOfPoolsDamaged, 1);
 	int totalSpillOver = 0; // Accumulate our total spill damage
+
+#ifdef DEBUG_SPILL_DAMAGE
+	spillOverDebug << " Number of Spill Over Pools: " << numSpillOverPools << "\n";
+	spillOverDebug << " Spill Over Multiplier: " << spillMultPerPool << "\n";
+#endif
 
 	// from screenshots, it appears that food mitigation and armor mitigation were independently calculated
 	// and then added together.
@@ -1399,9 +1426,17 @@ int CombatManager::applyDamage(TangibleObject* attacker, WeaponObject* weapon, C
 		healthDamage -= foodMitigation;
 		totalFoodMit += foodMitigation;
 
+#ifdef DEBUG_SPILL_DAMAGE
+		spillOverDebug << " Non-Spill Health Damaged: " << healthDamage << "\n";
+#endif
+
 		int spilledDamage = (int)(healthDamage * spillMultPerPool); // Cut our damage by the spill percentage
 		healthDamage -= spilledDamage;								// subtract spill damage from total damage
 		totalSpillOver += spilledDamage;							// accumulate spill damage
+
+#ifdef DEBUG_SPILL_DAMAGE
+		spillOverDebug << " Health Spill Over Amount: " << spilledDamage << "\n";
+#endif
 
 		defender->inflictDamage(attacker, CreatureAttribute::HEALTH, (int)healthDamage, true, xpType, true, true);
 
@@ -1426,9 +1461,17 @@ int CombatManager::applyDamage(TangibleObject* attacker, WeaponObject* weapon, C
 		actionDamage -= foodMitigation;
 		totalFoodMit += foodMitigation;
 
+#ifdef DEBUG_SPILL_DAMAGE
+		spillOverDebug << " Non-Spill Action Damaged: " << actionDamage << "\n";
+#endif
+
 		int spilledDamage = (int)(actionDamage * spillMultPerPool);
 		actionDamage -= spilledDamage;
 		totalSpillOver += spilledDamage;
+
+#ifdef DEBUG_SPILL_DAMAGE
+		spillOverDebug << " Action Spill Over Amount: " << spilledDamage << "\n";
+#endif
 
 		defender->inflictDamage(attacker, CreatureAttribute::ACTION, (int)actionDamage, true, xpType, true, true);
 
@@ -1452,9 +1495,17 @@ int CombatManager::applyDamage(TangibleObject* attacker, WeaponObject* weapon, C
 		mindDamage -= foodMitigation;
 		totalFoodMit += foodMitigation;
 
+#ifdef DEBUG_SPILL_DAMAGE
+		spillOverDebug << " Non-Spill Mind Damaged: " << mindDamage << "\n";
+#endif
+
 		int spilledDamage = (int)(mindDamage * spillMultPerPool);
 		mindDamage -= spilledDamage;
 		totalSpillOver += spilledDamage;
+
+#ifdef DEBUG_SPILL_DAMAGE
+		spillOverDebug << " Mind Spill Over Amount: " << spilledDamage << "\n";
+#endif
 
 		defender->inflictDamage(attacker, CreatureAttribute::MIND, (int)mindDamage, true, xpType, true, true);
 
@@ -1462,19 +1513,32 @@ int CombatManager::applyDamage(TangibleObject* attacker, WeaponObject* weapon, C
 	}
 
 	if (numSpillOverPools > 0) {
+#ifdef DEBUG_SPILL_DAMAGE
+		spillOverDebug << " Total Spill Over Damage: " << totalSpillOver << "\n";
+#endif
+
 		int spillDamagePerPool = (int)(totalSpillOver / numSpillOverPools); // Split the spill over damage between the pools damaged
 		int spillOverRemainder = (totalSpillOver % numSpillOverPools) + spillDamagePerPool;
 		int spillToApply = (numSpillOverPools-- > 1 ? spillDamagePerPool : spillOverRemainder);
 
 		if ((poolsToDamage ^ 0x7) & HEALTH) {
+#ifdef DEBUG_SPILL_DAMAGE
+			spillOverDebug << " Health Spill Over Damage: " << spillToApply << "\n";
+#endif
 			defender->inflictDamage(attacker, CreatureAttribute::HEALTH, spillToApply, true, xpType, true, true);
 		}
 
 		if ((poolsToDamage ^ 0x7) & ACTION) {
+#ifdef DEBUG_SPILL_DAMAGE
+			spillOverDebug << " Action Spill Over Damage: " << spillToApply << "\n";
+#endif
 			defender->inflictDamage(attacker, CreatureAttribute::ACTION, spillToApply, true, xpType, true, true);
 		}
 
 		if ((poolsToDamage ^ 0x7) & MIND) {
+#ifdef DEBUG_SPILL_DAMAGE
+			spillOverDebug << " Mind Spill Over Damage: " << spillToApply << "\n";
+#endif
 			defender->inflictDamage(attacker, CreatureAttribute::MIND, spillToApply, true, xpType, true, true);
 		}
 	}
@@ -1490,6 +1554,11 @@ int CombatManager::applyDamage(TangibleObject* attacker, WeaponObject* weapon, C
 	defenderHitList->setHitLocation(hitLocation);
 	defenderHitList->setFoodMitigation(totalFoodMit);
 	defenderHitList->setPoolsToWound(poolsToWound);
+
+#ifdef DEBUG_SPILL_DAMAGE
+	spillOverDebug << " ========== END Spill Over Debug ==========\n";
+	attacker->info(true) << spillOverDebug.toString();
+#endif
 
 	return totalDamage;
 }
@@ -1788,6 +1857,13 @@ int CombatManager::getAttackerAccuracyModifier(TangibleObject* attacker, Creatur
 		if (creoAttacker->isStanding()) {
 			attackerAccuracy += creoAttacker->getSkillMod(mod + "_while_standing");
 		}
+	}
+
+	// Add Dead Eye Prototype bonus
+	if (creoAttacker->isPlayerCreature() && creoAttacker->hasBuff(STRING_HASHCODE("dead_eye"))) {
+		uint32 deadEyeBonus = creoAttacker->getSkillModFromBuffs("dead_eye");
+
+		attackerAccuracy += (deadEyeBonus / 100.0f) * attackerAccuracy;
 	}
 
 	if (attackerAccuracy == 0)
@@ -2784,11 +2860,13 @@ void CombatManager::applyStates(CreatureObject* creature, CreatureObject* target
 			targetDefense /= 1.5;
 			targetDefense += playerLevel;
 
-			if (targetDefense > 90) {
-				targetDefense = 90.f;
-			}
+			// Run roll to check against
+			int roll = System::random(100);
 
-			if (System::random(100) > accuracyMod - targetDefense) {
+			// Chance to apply needs to always be 10% no matter the calc
+			int calc = Math::max(10, (int)(accuracyMod - targetDefense));
+
+			if (roll > calc) {
 				failed = true;
 			}
 
@@ -2803,10 +2881,10 @@ void CombatManager::applyStates(CreatureObject* creature, CreatureObject* target
 					targetDefense /= 1.5;
 					targetDefense += playerLevel;
 
-					if (targetDefense > 90)
-						targetDefense = 90.f;
+					// Chance to apply needs to always be 10% no matter the calc
+					calc = Math::max(10, (int)(accuracyMod - targetDefense));
 
-					if (System::random(100) > accuracyMod - targetDefense) {
+					if (roll > calc) {
 						failed = true;
 						break;
 					}
@@ -3196,8 +3274,15 @@ void CombatManager::checkForTefs(CreatureObject* attacker, CreatureObject* defen
 	}
 
 	if (attackingCreature != nullptr && targetCreature != nullptr) {
+		bool covertOvert = ConfigManager::instance()->useCovertOvertSystem();
+		uint32 targetFaction = targetCreature->getFaction();
+
+		if (covertOvert && !areInDuel(attackingCreature, targetCreature) && targetFaction > 0 && attackingCreature->getFaction() != targetFaction && attackingCreature->getFactionStatus() >= FactionStatus::COVERT) {
+			*shouldGcwTef = true;
+		}
+
 		if (attackingCreature->isPlayerCreature() && targetCreature->isPlayerCreature() && !areInDuel(attackingCreature, targetCreature)) {
-			if (!(*shouldGcwTef)) {
+			if (!(*shouldGcwTef) && !covertOvert) {
 				if (attackingCreature->getFaction() != targetCreature->getFaction() && attackingCreature->getFactionStatus() == FactionStatus::OVERT && targetCreature->getFactionStatus() == FactionStatus::OVERT) {
 					*shouldGcwTef = true;
 				}

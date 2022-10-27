@@ -100,7 +100,7 @@ class CreatureObject extends TangibleObject {
 	protected float runSpeed;
 	protected float walkSpeed;
 	protected float currentSpeed;
-	protected float terrainNegotiation;
+	protected float waterModPercent;
 	protected float runAcceleration;
 	protected float walkAcceleration;
 	protected float height;
@@ -253,10 +253,7 @@ class CreatureObject extends TangibleObject {
 	public native void initializeTransientMembers();
 
 	@preLocked
-	public abstract void setCountdownTimer(unsigned int newCount, boolean notifyClient = true) {
-		super.setCountdownTimer(newCount, notifyClient);
-		cooldownTimerMap.updateToCurrentAndAddMili("incapTimer", getUseCount()*1000);
-	}
+	public native void setIncapacitationTimer(unsigned int newCount, boolean notifyClient = true);
 
 	/**
 	 * Sends a CommandQueueRemove ObjectControllerMessage to the owner client of this object
@@ -423,7 +420,7 @@ class CreatureObject extends TangibleObject {
 	 * @param notifyClient if set true the client will be updated with the changes
 	 */
 	@preLocked
-	public native void setAccelerationMultiplierMod(float newMultiplierMod, boolean notifyClient = true);
+	public native void setAccelerationMultiplierMod(float newMultiplierMod, boolean notifyClient = true, boolean recalculateBuffs = true);
 
 	/**
 	 * Updates the speed multiplier base
@@ -443,7 +440,7 @@ class CreatureObject extends TangibleObject {
 	 * @param notifyClient if set true the client will be updated with the changes
 	 */
 	@preLocked
-	public native abstract void setSpeedMultiplierMod(float newMultiplierMod, boolean notifyClient = true);
+	public native abstract void setSpeedMultiplierMod(float newMultiplierMod, boolean notifyClient = true, boolean recalculateBuffs = true);
 
 	/**
 	 * Updates the turn scale mod
@@ -454,6 +451,26 @@ class CreatureObject extends TangibleObject {
 	 */
 	@preLocked
 	public native abstract void setTurnScale(float newMultiplierMod, boolean notifyClient = true);
+
+	/**
+	 * Updates the walk speed
+	 * @pre { this object is locked }
+	 * @post { this object is locked }
+	 * @param value new value to set
+	 * @param notifyClient if set true the client will be updated with the changes
+	 */
+	@preLocked
+	public native abstract void setWalkSpeed(float value, boolean notifyClient = true);
+
+	/**
+	 * Updates the turn scale mod
+	 * @pre { this object is locked }
+	 * @post { this object is locked }
+	 * @param value new value to be set
+	 * @param notifyClient if set true the client will be updated with the changes
+	 */
+	@preLocked
+	public native abstract void setWaterModPercent(float value, boolean notifyClient = true);
 
 	/**
 	 * Updates the run speed
@@ -839,21 +856,22 @@ class CreatureObject extends TangibleObject {
 	}
 
 	/**
-	 * Sets the terrain negotiation variable, and updates it.
+	 * Sets the slope mod percent.
 	 * @pre { this object is locked }
-	 * @post { this object is locked, this object has the specified terrain negotiation }
-	 * @param terrain new terrain negotiation
+	 * @post { this object is locked, this object has the specified slope mod andgle & percent. }
 	 * @param notifyClient if set true the client will be updated with the changes
 	 */
 	@preLocked
-	public native void setTerrainNegotiation(float value, boolean notifyClient = true);
+	public native void updateSlopeMods(boolean notifyClient = true);
 
 	/**
-	 * Updates the client with the players current terrain negotiation.
+	 * Sets the slope mod percent.
 	 * @pre { this object is locked }
-	 * @post { this object is locked, this object has the specified terrain negotiation }
+	 * @post { this object is locked, this object has the specified slope mod andgle & percent. }
+	 * @param notifyClient if set true the client will be updated with the changes
 	 */
-	public native void updateTerrainNegotiation();
+	@preLocked
+	public native void updateWaterMod(boolean notifyClient = true);
 
 	/**
 	 * Adds the specified skillbox to this object
@@ -1660,6 +1678,19 @@ class CreatureObject extends TangibleObject {
 	}
 
 	@read
+	public float getSlopeModAngle() {
+		return slopeModAngle;
+	}
+
+	@read
+	public native float getSlopeModPercent();
+
+	@read
+	public float getWaterModPercent() {
+		return waterModPercent;
+	}
+
+	@read
 	public float getRunSpeed() {
 		return runSpeed;
 	}
@@ -1673,9 +1704,6 @@ class CreatureObject extends TangibleObject {
 	public float getTurnScale() {
 		return turnScale;
 	}
-
-	@read
-	public native float getTerrainNegotiation();
 
 	@read
 	public float getRunAcceleration() {
@@ -1774,11 +1802,6 @@ class CreatureObject extends TangibleObject {
 	@read
 	public byte getMoodID() {
 		return moodID;
-	}
-
-	@read
-	public float getSlopeModPercent() {
-		return slopeModPercent;
 	}
 
 	@read
@@ -2170,6 +2193,15 @@ class CreatureObject extends TangibleObject {
 
 	@read
 	public native float calculateCostAdjustment(byte stat, float baseCost);
+
+	@read
+	public native float getSpeedModifier();
+
+	@read
+	public native float getAccelerationModifier();
+
+	@local
+	public native void sendSpeedAndAccelerationMods(SceneObject player);
 
 	@preLocked
 	public native void updateSpeedAndAccelerationMods();

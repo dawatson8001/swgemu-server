@@ -46,12 +46,15 @@ include server.zone.objects.scene.variables.DeltaVector;
 include server.zone.objects.scene.variables.DeltaVectorMap;
 include server.zone.objects.scene.variables.DeltaBitArray;
 include server.zone.objects.transaction.TransactionLog;
+include server.zone.objects.player.PlayerBitmasks;
 
 @json
 class PlayerObject extends IntangibleObject {
 	protected int playerLogLevel;
 
-	protected unsigned int characterBitmask;
+	@dereferenced
+	protected PlayerBitmasks playerBitmask;
+
 	protected string title;
 
 	protected string savedTerrainName;
@@ -59,6 +62,8 @@ class PlayerObject extends IntangibleObject {
 
 	@dereferenced
 	protected Badges badges;
+
+	protected int birthDate;
 
 	protected int forcePower;
 	protected int forcePowerMax;
@@ -305,14 +310,6 @@ class PlayerObject extends IntangibleObject {
 	protected transient unsigned long sessionStatsTotalCredits;
 	protected transient string sessionStatsIPAddress;
 
-	public static final int LFG = 1;
-	public static final int NEWBIEHELPER = 2;
-	public static final int ROLEPLAYER = 4;
-	public static final int AFK = 0x80;
-	public static final int LD = 0x100;
-	public static final int FACTIONRANK = 0x200;
-	public static final int ANONYMOUS = 0x80000000;
-
 	public static final int ONLINE = 1;
 	public static final int OFFLINE = 2;
 	public static final int LINKDEAD = 3;
@@ -323,8 +320,6 @@ class PlayerObject extends IntangibleObject {
 
 	public PlayerObject() {
 		playerLogLevel = 4; // INFO
-
-		characterBitmask = 0;
 
 		commandMessageStrings.setNoDuplicateInsertPlan();
 
@@ -351,6 +346,8 @@ class PlayerObject extends IntangibleObject {
 		skillPoints = 0;
 
 		conversatingCreature = 0;
+
+		birthDate = 0;
 
 		forcePower = 0;
 		forcePowerMax = 0;
@@ -757,6 +754,7 @@ class PlayerObject extends IntangibleObject {
 	 * @param amount The float amount of faction points to add.
 	 */
 	public native void increaseFactionStanding(final string factionName, float amount);
+	public native void giveCoaBonus(final string factionName, float amount, float currentStanding);
 	public native void decreaseFactionStanding(final string factionName, float amount);
 	public native void setFactionStanding(final string factionName, float amount);
 
@@ -1069,6 +1067,10 @@ class PlayerObject extends IntangibleObject {
 		savedTerrainName = name;
 	}
 
+	public void setBirthDate(int date) {
+		birthDate = date;
+	}
+
 	public native void setForcePower(int fp, boolean notifyClient = true);
 
 	public native void setForcePowerMax(int newValue, boolean notifyClient = true);
@@ -1252,6 +1254,10 @@ class PlayerObject extends IntangibleObject {
 		badges.setBadge(badge);
 	}
 
+	public void revokeBadge(unsigned int badge) {
+		badges.unsetBadge(badge);
+	}
+
 	public native void awardBadge(unsigned int badge);
 
 	public void setTeleporting(boolean val) {
@@ -1315,9 +1321,10 @@ class PlayerObject extends IntangibleObject {
 		return commandMessageStrings.contains(actionCRC);
 	}
 
+	@local
 	@read
-	public unsigned int getCharacterBitmask() {
-		return characterBitmask;
+	public final PlayerBitmasks getPlayerBitmasks() {
+		return playerBitmask;
 	}
 
 	@read
@@ -1367,16 +1374,10 @@ class PlayerObject extends IntangibleObject {
 		return (adminLevel == 15 && hasAbility("admin"));
 	}
 
-	public void setCharacterBitmask(unsigned int bitmask) {
-		characterBitmask = bitmask;
-	}
-
-	public native boolean setCharacterBit(unsigned int bit, boolean notifyClient = false);
-	public native boolean clearCharacterBit(unsigned int bit, boolean notifyClient = false);
+	public native boolean setPlayerBit(unsigned int bit, boolean notifyClient = false);
+	public native boolean clearPlayerBit(unsigned int bit, boolean notifyClient = false);
 	public native void toggleCharacterBit(unsigned int bit);
-	/**
-	 * is the player AFK
-	 */
+
 	@read
 	public native boolean isLFG();
 
@@ -1431,6 +1432,14 @@ class PlayerObject extends IntangibleObject {
 	@read
 	public final DeltaBitArray getCompletedQuests() {
 		return completedQuests;
+	}
+
+	// The client tracks time played in 30s intervals
+	@read
+	public int getTotalPlayedTime() {
+		int totalTime = miliSecsPlayed / 1000 / 30;
+
+		return totalTime;
 	}
 
 	@read
@@ -1792,6 +1801,9 @@ class PlayerObject extends IntangibleObject {
 	public native boolean hasPvpTef();
 
 	@read
+	public native boolean hasGcwTef();
+
+	@read
 	public native boolean hasBhTef();
 
 	public native void setCrackdownTefTowards(unsigned int factionCrc, boolean scheduleTefRemovalTask = true);
@@ -1944,6 +1956,9 @@ class PlayerObject extends IntangibleObject {
 
 	@dirty
 	public native int getCharacterAgeInDays();
+
+	@dirty
+	public native int getBirthDate();
 
 	public void addToReactionFines(int fine) {
 		reactionFines = reactionFines + fine;

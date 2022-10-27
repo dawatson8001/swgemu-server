@@ -88,7 +88,7 @@ public:
 		LOGGEDIN,					// ManagedObject arg1 = player, long arg2 = 0
 		LOGGEDOUT,					// ManagedObject arg1 = player, long arg2 = 0
 		CREATUREREVIVED,			// ManagedObject arg1 = healer (optional), long arg2 = 0
-		ZONESWITCHED,				// ManagedObject arg1 = null, long arg2 = 0
+		ZONESWITCHED,				// ManagedObject arg1 = null, long arg2 = hashcode of new zone name
 		TUNEDCRYSTAL,				// ManagedObject arg1 = crystal, long arg2 = 0
 		BHTEFCHANGED,				// ManagedObject arg1 = null, long arg2 = 0
 		FACTIONCHANGED,				// ManagedObject arg1 = null, long arg2 = 0
@@ -101,7 +101,8 @@ public:
 		HARVESTEDCREATURE,			// ManagedObject arg1 = resource spawn, long arg2 = Total creature resources harvested
 		DEPLOYEDCAMP,				// ManagedObject arg1 = camp area, long arg2 = 0
 		IMAGEDESIGNHAIR,			// ManagedObject arg1 = null, long arg2 = 0
-		COMBATCOMMANDENQUEUED		// ManagedObject arg1 = player, long arg2 = 0
+		COMBATCOMMANDENQUEUED,		// ManagedObject arg1 = player, long arg2 = 0
+		FACTIONCHAT					// ManagedObject arg1 = AiAgent, long arg2 = playerID
 	};
 };
 

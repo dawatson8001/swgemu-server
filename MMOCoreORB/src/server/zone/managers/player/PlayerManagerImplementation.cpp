@@ -622,9 +622,15 @@ QuestTasks* PlayerManagerImplementation::getQuestTasks(const unsigned int questC
 			delete iffStream;
 
 			QuestTasks* questTasks = new QuestTasks();
-			questTasks->parseDataTable(dtable);
+			try {
+				questTasks->parseDataTable(dtable);
 
-			questTasksCache.put(questCrc, questTasks);
+				questTasksCache.put(questCrc, questTasks);
+			}
+			catch (UnknownDatatableException& e) {
+				error() << "Parsing of " << questPath << " - " << e.getMessage();
+				return nullptr;
+			}
 		}
 
 		Reference<QuestTasks*> questTasks = questTasksCache.get(questCrc);
@@ -1104,8 +1110,8 @@ uint8 PlayerManagerImplementation::calculateIncapacitationTimer(CreatureObject* 
 	// Switch the sign of the value
 	int value = -condition;
 
-	if (value < 0)
-		return 0;
+	if (value < 5)
+		return 5;
 
 	int recoveryTime = (value / 5); // In seconds - 3 seconds is recoveryEvent timer
 
@@ -1168,13 +1174,12 @@ int PlayerManagerImplementation::notifyDestruction(TangibleObject* destructor, T
 	if (ghost->getIncapacitationCounter() >= 3) {
 		killPlayer(destructor, playerCreature, 0, isCombatAction);
 	} else {
-
 		playerCreature->setPosture(CreaturePosture::INCAPACITATED, true, true);
 		playerCreature->clearCombatState(false);
 		playerCreature->clearState(CreatureState::FEIGNDEATH); // We got incapped for real - Remove the state so we can be DB'd
 
 		uint8 incapTime = calculateIncapacitationTimer(playerCreature, condition);
-		playerCreature->setCountdownTimer((uint32) incapTime, true);
+		playerCreature->setIncapacitationTimer((uint32) incapTime, true);
 
 		Reference<Task*> oldTask = playerCreature->getPendingTask("incapacitationRecovery");
 
@@ -1720,8 +1725,13 @@ void PlayerManagerImplementation::sendPlayerToCloner(CreatureObject* player, uin
 		player->addShockWounds(100, true);
 	}
 
-	if (player->getFactionStatus() != FactionStatus::ONLEAVE && cbot->getFacilityType() != CloningBuildingObjectTemplate::FACTION_IMPERIAL && cbot->getFacilityType() != CloningBuildingObjectTemplate::FACTION_REBEL && !player->hasSkill("force_title_jedi_rank_03"))
-		player->setFactionStatus(FactionStatus::ONLEAVE);
+	if (ConfigManager::instance()->useCovertOvertSystem()) {
+		if ((player->getFactionStatus() == FactionStatus::OVERT) && !player->hasSkill("force_rank_light_novice") && !player->hasSkill("force_rank_dark_novice") && (cbot->getFacilityType() != CloningBuildingObjectTemplate::FACTION_IMPERIAL) && (cbot->getFacilityType() != CloningBuildingObjectTemplate::FACTION_REBEL))
+			player->setFactionStatus(FactionStatus::COVERT);
+	} else {
+		if (player->getFactionStatus() != FactionStatus::ONLEAVE && cbot->getFacilityType() != CloningBuildingObjectTemplate::FACTION_IMPERIAL && cbot->getFacilityType() != CloningBuildingObjectTemplate::FACTION_REBEL && !player->hasSkill("force_title_jedi_rank_03"))
+			player->setFactionStatus(FactionStatus::ONLEAVE);
+	}
 
 	SortedVector<ManagedReference<SceneObject*> > insurableItems = getInsurableItems(player, false);
 
@@ -6326,6 +6336,8 @@ void PlayerManagerImplementation::doPvpDeathRatingUpdate(CreatureObject* player,
 	int frsXpAdjustment = 0;
 	bool throttleOnly = true;
 
+	bool accountVictimList = ConfigManager::instance()->getBool("PlayerManager.accountVictimList", false);
+
 	for (int i = 0; i < threatMap->size(); ++i) {
 		ThreatMapEntry* entry = &threatMap->elementAt(i).getValue();
 		TangibleObject* attacker = threatMap->elementAt(i).getKey();
@@ -6362,7 +6374,13 @@ void PlayerManagerImplementation::doPvpDeathRatingUpdate(CreatureObject* player,
 			highDamageAttacker = attackerCreo;
 		}
 
-		if (attackerGhost->hasOnVictimList(player->getObjectID())) {
+		uint64 victimId = player->getObjectID();
+
+		if (accountVictimList) {
+			victimId = ghost->getAccountID();
+		}
+
+		if (attackerGhost->hasOnVictimList(victimId)) {
 			String stringFile;
 
 			if (attackerCreo->getSpecies() == CreatureObject::TRANDOSHAN)
@@ -6412,7 +6430,7 @@ void PlayerManagerImplementation::doPvpDeathRatingUpdate(CreatureObject* player,
 			}
 		}
 
-		attackerGhost->addToVictimList(player->getObjectID());
+		attackerGhost->addToVictimList(victimId);
 		throttleOnly = false;
 
 		if (defenderPvpRating > PlayerObject::PVP_RATING_FLOOR) {

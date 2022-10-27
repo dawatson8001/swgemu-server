@@ -145,6 +145,7 @@ void ObjectManager::registerObjectTypes() {
 	objectFactory.registerObject<PlantObject>(SceneObjectType::GROWABLEPLANT);
 	objectFactory.registerObject<FsCsObject>(SceneObjectType::FSCSOBJECT);
 	objectFactory.registerObject<FsBuffItem>(SceneObjectType::FSBUFFITEM);
+	objectFactory.registerObject<DeadEyePrototype>(SceneObjectType::DEADEYEPROTOTYPE);
 	objectFactory.registerObject<ContractCrate>(SceneObjectType::CONTRACTCRATE);
 	objectFactory.registerObject<SlicingTool>(SceneObjectType::SLICINGTOOL);
 	objectFactory.registerObject<SlicingTool>(SceneObjectType::FLOWANALYZER);
@@ -186,6 +187,7 @@ void ObjectManager::registerObjectTypes() {
 	objectFactory.registerObject<GeneratorObject>(SceneObjectType::GENERATOR);
 	objectFactory.registerObject<InstallationObject>(SceneObjectType::DESTRUCTIBLE);
 	objectFactory.registerObject<InstallationObject>(SceneObjectType::MINEFIELD);
+	objectFactory.registerObject<InstallationObject>(SceneObjectType::COVERTSCANNER);
 	objectFactory.registerObject<WeaponObject>(SceneObjectType::WEAPON);
 	objectFactory.registerObject<WeaponObject>(SceneObjectType::MELEEWEAPON);
 	objectFactory.registerObject<WeaponObject>(SceneObjectType::PISTOL);

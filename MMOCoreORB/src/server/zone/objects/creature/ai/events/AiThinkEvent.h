@@ -20,12 +20,12 @@ namespace ai {
 namespace events {
 
 class AiThinkEvent : public Task {
-	ManagedWeakReference<AiAgent*> creature;
+	ManagedWeakReference<AiAgent*> agent;
 	Time startTime;
 
 public:
-	AiThinkEvent(AiAgent* pl) : Task(1000) {
-		creature = pl;
+	AiThinkEvent(AiAgent* aiAgent) : Task(1000) {
+		agent = aiAgent;
 		startTime.updateToCurrentTime();
 		AiMap::instance()->activeRecoveryEvents.increment();
 	}
@@ -35,19 +35,27 @@ public:
 	}
 
 	void run() {
-		ManagedReference<AiAgent*> strongRef = creature.get();
+		ManagedReference<AiAgent*> strongRef = agent.get();
 
-		if (strongRef == nullptr)
+		if (strongRef == nullptr || strongRef->isDead() || strongRef->isIncapacitated())
+			return;
+
+		ZoneServer* zoneServer = strongRef->getZoneServer();
+
+		if (zoneServer != nullptr && zoneServer->isServerShuttingDown())
 			return;
 
 		Locker locker(strongRef);
 		strongRef->doRecovery(startTime.miliDifference());
 	}
 
-	void schedule(uint64 delay = 0)
-	{
+	void schedule(uint64 delay = 0) {
 		startTime.updateToCurrentTime();
 		Task::schedule(delay);
+	}
+
+	void clearAgentObject() {
+		agent = nullptr;
 	}
 };
 

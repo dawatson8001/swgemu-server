@@ -10,17 +10,17 @@
 #include "server/zone/objects/tangible/TangibleObject.h"
 
 void SquadObserverImplementation::addMember(AiAgent* member) {
-	Locker locker(&containmentTeamLock);
+	Locker locker(&squadLock);
 	teamMembers.add(member);
 }
 
 int SquadObserverImplementation::size() {
-	Locker locker(&containmentTeamLock);
+	Locker locker(&squadLock);
 	return teamMembers.size();
 }
 
 AiAgent* SquadObserverImplementation::getMember(unsigned int teamMemberIndex) {
-	Locker locker(&containmentTeamLock);
+	Locker locker(&squadLock);
 	if (teamMemberIndex < teamMembers.size()) {
 		return teamMembers.get(teamMemberIndex);
 	} else {
@@ -29,19 +29,34 @@ AiAgent* SquadObserverImplementation::getMember(unsigned int teamMemberIndex) {
 }
 
 void SquadObserverImplementation::removeMember(unsigned int teamMemberIndex) {
-	Locker locker(&containmentTeamLock);
+	Locker locker(&squadLock);
 	if (teamMemberIndex < teamMembers.size()) {
 		teamMembers.remove(teamMemberIndex);
 	}
 }
 
+void SquadObserverImplementation::despawnSquad() {
+	int size = teamMembers.size();
+
+	for (int i = 0; i < size; i++) {
+		AiAgent* member = getMember(i);
+
+		if (member == nullptr || member->isDead() || member->isInCombat())
+			continue;
+
+		Locker lock(member);
+		member->destroyObjectFromWorld(true);
+	}
+}
+
 bool SquadObserverImplementation::despawnMembersCloseToLambdaShuttle(const Vector3& landingPosition, bool forcedCleanup) {
-	// Do not lock containmentTeamLock in this method to avoid deadlocks. Use the minimal locking methods above.
+	// Do not lock squadLock in this method to avoid deadlocks. Use the minimal locking methods above.
 	for (int i = size() - 1; i >= 0; i--) {
 		auto npc = getMember(i);
 		if (npc != nullptr) {
 			Locker npcLock(npc);
 			auto distance = npc->getWorldPosition().squaredDistanceTo(landingPosition);
+
 			if (npc->isDead()) {
 				removeMember(i);
 				continue;
@@ -54,10 +69,10 @@ bool SquadObserverImplementation::despawnMembersCloseToLambdaShuttle(const Vecto
 				npc->clearPatrolPoints();
 				npc->setNextPosition(landingPosition.getX(), landingPosition.getZ(), landingPosition.getY());
 
-				if (forcedCleanup)
-					npc->leash();
-
 				if (distance < 8 * 8) {
+					npc->destroyObjectFromWorld(true);
+					removeMember(i);
+				} else if (forcedCleanup) {
 					npc->destroyObjectFromWorld(true);
 					removeMember(i);
 				}

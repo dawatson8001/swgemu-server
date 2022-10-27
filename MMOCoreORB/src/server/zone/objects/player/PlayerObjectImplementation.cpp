@@ -175,8 +175,6 @@ void PlayerObjectImplementation::loadTemplateData(SharedObjectTemplate* template
 
 	SharedPlayerObjectTemplate* sply = dynamic_cast<SharedPlayerObjectTemplate*>(templateData);
 
-	characterBitmask = 0;
-
 	adminLevel = 0;
 
 	forcePower = getForcePower();
@@ -300,6 +298,11 @@ void PlayerObjectImplementation::unload() {
 				continue;
 
 			creature->dropActiveArea(area);
+		}
+
+		if (creature->isInNoCombatArea()) {
+			Locker lock(creature);
+			creature->setInNoCombatArea(false);
 		}
 	}
 
@@ -539,57 +542,56 @@ void PlayerObjectImplementation::sendMessage(BasePacket* msg) {
 	}
 }
 
-bool PlayerObjectImplementation::setCharacterBit(uint32 bit, bool notifyClient) {
-	if (!(characterBitmask & bit)) {
-		characterBitmask |= bit;
+bool PlayerObjectImplementation::setPlayerBit(uint32 bit, bool notifyClient) {
+	if (!playerBitmask.hasPlayerBit(bit)) {
+		playerBitmask.setOneBit(bit);
 
 		if (notifyClient) {
 			PlayerObjectDeltaMessage3* delta = new PlayerObjectDeltaMessage3(asPlayerObject());
-			delta->updateCharacterBitmask(characterBitmask);
+			delta->updatePlayerBitmasks();
 			delta->close();
 
 			broadcastMessage(delta, true);
 		}
 		return true;
-	} else
-		return false;
+	}
+	return false;
+}
+
+bool PlayerObjectImplementation::clearPlayerBit(uint32 bit, bool notifyClient) {
+	if (playerBitmask.hasPlayerBit(bit)) {
+		playerBitmask.clearOneBit(bit);
+
+		if (notifyClient) {
+			PlayerObjectDeltaMessage3* delta = new PlayerObjectDeltaMessage3(asPlayerObject());
+			delta->updatePlayerBitmasks();
+			delta->close();
+
+			broadcastMessage(delta, true);
+		}
+		return true;
+	}
+	return false;
 }
 
 bool PlayerObjectImplementation::isAnonymous() const {
-	return (characterBitmask & ((uint32)ANONYMOUS)) != 0;
+	return playerBitmask.hasPlayerBit(PlayerBitmasks::ANONYMOUS);
 }
 
 bool PlayerObjectImplementation::isAFK() const {
-	return (characterBitmask & ((uint32)AFK)) != 0;
+	return playerBitmask.hasPlayerBit(PlayerBitmasks::AFK);
 }
 
 bool PlayerObjectImplementation::isRoleplayer() const {
-	return (characterBitmask & ((uint32)ROLEPLAYER)) != 0;
+	return playerBitmask.hasPlayerBit(PlayerBitmasks::ROLEPLAYER);
 }
 
 bool PlayerObjectImplementation::isNewbieHelper() const {
-	return (characterBitmask & ((uint32)NEWBIEHELPER)) != 0;
+	return playerBitmask.hasPlayerBit(PlayerBitmasks::NEWBIEHELPER);
 }
 
 bool PlayerObjectImplementation::isLFG() const {
-	return (characterBitmask & ((uint32)LFG)) != 0;
-}
-
-bool PlayerObjectImplementation::clearCharacterBit(uint32 bit, bool notifyClient) {
-	if (characterBitmask & bit) {
-		characterBitmask &= ~bit;
-
-		if (notifyClient) {
-			PlayerObjectDeltaMessage3* delta = new PlayerObjectDeltaMessage3(asPlayerObject());
-			delta->updateCharacterBitmask(characterBitmask);
-			delta->close();
-
-			broadcastMessage(delta, true);
-		}
-
-		return true;
-	} else
-		return false;
+	return playerBitmask.hasPlayerBit(PlayerBitmasks::LFG);
 }
 
 void PlayerObjectImplementation::sendBadgesResponseTo(CreatureObject* player) {
@@ -1732,11 +1734,17 @@ void PlayerObjectImplementation::setLanguageID(byte language, bool notifyClient)
 }
 
 void PlayerObjectImplementation::toggleCharacterBit(uint32 bit) {
-	if (characterBitmask & bit) {
-		clearCharacterBit(bit, true);
+	if (playerBitmask.hasPlayerBit(bit)) {
+		playerBitmask.clearOneBit(bit);
 	} else {
-		setCharacterBit(bit, true);
+		playerBitmask.setOneBit(bit);
 	}
+
+	PlayerObjectDeltaMessage3* delta = new PlayerObjectDeltaMessage3(asPlayerObject());
+	delta->updatePlayerBitmasks();
+	delta->close();
+
+	broadcastMessage(delta, true);
 }
 
 void PlayerObjectImplementation::setFoodFilling(int newValue, bool notifyClient) {
@@ -1771,9 +1779,14 @@ void PlayerObjectImplementation::increaseFactionStanding(const String& factionNa
 	if (amount < 0)
 		return; //Don't allow negative values to be sent to this method.
 
-	CreatureObject* player = cast<CreatureObject*>( parent.get().get());
+	CreatureObject* player = cast<CreatureObject*>(parent.get().get());
+
 	if (player == nullptr)
 		return;
+
+	uint32 factionHash = factionName.hashCode();
+	uint32 factionCRC = 0;
+	bool playerIsFaction = player->getFaction() == factionHash;
 
 	//Get the current amount of faction standing
 	float currentAmount = factionStandingList.getFactionStanding(factionName);
@@ -1783,10 +1796,16 @@ void PlayerObjectImplementation::increaseFactionStanding(const String& factionNa
 
 	if (!factionStandingList.isPvpFaction(factionName))
 		newAmount = Math::min(5000.f, newAmount);
-	else if (player->getFaction() == factionName.hashCode())
+	else if (playerIsFaction) {
+		if (factionHash == STRING_HASHCODE("rebel"))
+			factionCRC = Factions::FACTIONREBEL;
+		else if (factionHash == STRING_HASHCODE("imperial"))
+			factionCRC = Factions::FACTIONIMPERIAL;
+
 		newAmount = Math::min((float) FactionManager::instance()->getFactionPointsCap(player->getFactionRank()), newAmount);
-	else
+	} else {
 		newAmount = Math::min(1000.f, newAmount);
+	}
 
 	factionStandingList.put(factionName, newAmount);
 
@@ -1801,8 +1820,37 @@ void PlayerObjectImplementation::increaseFactionStanding(const String& factionNa
 		if (change == 0)
 			msg.setStringId("@base_player:prose_max_faction");
 
-
 		player->sendSystemMessage(msg);
+
+		PlayerManager* playerManager = server->getPlayerManager();
+
+		// Need to give Cries of Alderaan Faction Bonus only if they are not maxed already
+		if (change > 0 && playerIsFaction && (playerManager != nullptr && playerManager->getCoaWinningFaction() == factionCRC)) {
+			giveCoaBonus(factionName, amount, newAmount);
+		}
+	}
+}
+
+void PlayerObjectImplementation::giveCoaBonus(const String& factionName, float amount, float currentStanding) {
+	CreatureObject* player = cast<CreatureObject*>(parent.get().get());
+
+	if (player == nullptr)
+		return;
+
+	float bonus = amount * 0.1f;
+	float newStanding = bonus + currentStanding;
+
+	newStanding = Math::min((float) FactionManager::instance()->getFactionPointsCap(player->getFactionRank()), newStanding);
+
+	if (newStanding > 0) {
+		factionStandingList.put(factionName, newStanding);
+		int bonusApplied = floor(newStanding - currentStanding);
+
+		StringIdChatParameter coaBonus("@base_player:prose_coa_bonus");
+
+		coaBonus.setDI(bonusApplied);
+		coaBonus.setTO("@faction/faction_names:" + factionName);
+		player->sendSystemMessage(coaBonus);
 	}
 }
 
@@ -1993,22 +2041,26 @@ void PlayerObjectImplementation::doRecovery(int latency) {
 
 	if (isOnline()) {
 		if (creature->isInCombat() && creature->getTargetID() != 0 && !creature->isPeaced() && !creature->hasBuff(STRING_HASHCODE("private_feign_buff")) && !creature->hasAttackDelay() && !creature->hasPostureChangeDelay() &&
-		creature->isNextActionPast() && creature->getCommandQueueSize() == 0 && !creature->isDead() && !creature->isIncapacitated() && cooldownTimerMap->isPast("autoAttackDelay") && !creature->hasAttackDelay() && !creature->hasPostureChangeDelay()) {
+		creature->isNextActionPast() && creature->getCommandQueueSize() == 0 && !creature->isDead() && !creature->isIncapacitated() && cooldownTimerMap->isPast("autoAttackDelay")) {
 
 			ManagedReference<SceneObject*> targetObject = zoneServer->getObject(creature->getTargetID());
 
 			if (targetObject != nullptr) {
-				if (targetObject->isInRange(creature, Math::max(10, creature->getWeapon()->getMaxRange()) + targetObject->getTemplateRadius() + creature->getTemplateRadius())) {
-					creature->executeObjectControllerAction(STRING_HASHCODE("attack"), creature->getTargetID(), "");
+				WeaponObject* weapon = creature->getWeapon();
+
+				if (weapon != nullptr) {
+					if (targetObject->isInRange(creature, Math::max(10, weapon->getMaxRange()) + targetObject->getTemplateRadius() + creature->getTemplateRadius())) {
+						creature->executeObjectControllerAction(STRING_HASHCODE("attack"), creature->getTargetID(), "");
+					}
+
+					float weaponSpeed = CombatManager::instance()->calculateWeaponAttackSpeed(creature, weapon, 1.f);
+					float delay = weaponSpeed * 1000;
+
+					Locker lock(creature);
+
+					// as long as the target is still valid, we still want to continue to queue auto attacks
+					cooldownTimerMap->updateToCurrentAndAddMili("autoAttackDelay", (uint64)delay);
 				}
-
-				float weaponSpeed = ((uint64)(CombatManager::instance()->calculateWeaponAttackSpeed(creature, creature->getWeapon(), 1.f)));
-				uint64 delay = weaponSpeed * 1000;
-
-				Locker lock(creature);
-
-				// as long as the target is still valid, we still want to continue to queue auto attacks
-				cooldownTimerMap->updateToCurrentAndAddMili("autoAttackDelay", delay);
 			} else {
 				creature->setTargetID(0);
 			}
@@ -2208,7 +2260,7 @@ void PlayerObjectImplementation::setLinkDead(bool isSafeLogout) {
 		logoutTimeStamp.addMiliTime(ConfigManager::instance()->getInt("Core3.Tweaks.PlayerObject.LinkDeadDelay", 3 * 60) * 1000); // 3 minutes if unsafe
 	}
 
-	setCharacterBit(PlayerObjectImplementation::LD, true);
+	setPlayerBit(PlayerBitmasks::LD, true);
 
 	activateRecovery();
 
@@ -2222,7 +2274,13 @@ void PlayerObjectImplementation::setOnline() {
 
 	TransactionLog trx(TrxCode::PLAYERONLINE, getParentRecursively(SceneObjectType::PLAYERCREATURE));
 
-	clearCharacterBit(PlayerObjectImplementation::LD, true);
+	clearPlayerBit(PlayerBitmasks::LD, true);
+
+	PlayerObjectDeltaMessage3* dplay3 = new PlayerObjectDeltaMessage3(asPlayerObject());
+	dplay3->setBirthDate();
+	dplay3->setTotalPlayTime();
+	dplay3->close();
+	broadcastMessage(dplay3, true);
 
 	doRecovery(1000);
 
@@ -2496,6 +2554,7 @@ void PlayerObjectImplementation::updateLastCombatActionTimestamp(bool updateGcwC
 
 	if (updateGcwAction) {
 		lastGcwPvpCombatActionTimestamp.updateToCurrentTime();
+
 		lastGcwPvpCombatActionTimestamp.addMiliTime(FactionManager::TEFTIMER);
 	}
 
@@ -2538,6 +2597,10 @@ bool PlayerObjectImplementation::hasTef() const {
 
 bool PlayerObjectImplementation::hasPvpTef() const {
 	return !lastGcwPvpCombatActionTimestamp.isPast() || hasBhTef() || !lastPvpAreaCombatActionTimestamp.isPast();
+}
+
+bool PlayerObjectImplementation::hasGcwTef() const {
+	return !lastGcwPvpCombatActionTimestamp.isPast();
 }
 
 bool PlayerObjectImplementation::hasBhTef() const {
@@ -2933,6 +2996,10 @@ void PlayerObjectImplementation::clearJournalQuestTask(unsigned int questCrc, in
 
 bool PlayerObjectImplementation::isJournalQuestActive(unsigned int questCrc) {
 	PlayerQuestData questData = getQuestData(questCrc);
+
+	if (questData.getCompletedFlag())
+		return false;
+
 	return questData.getOwnerId() ? true : false;
 }
 
@@ -3193,6 +3260,41 @@ int PlayerObjectImplementation::getCharacterAgeInDays() {
 	return days;
 }
 
+int PlayerObjectImplementation::getBirthDate() {
+	if (birthDate > 0)
+		return birthDate;
+
+	ManagedReference<CreatureObject*> creature = dynamic_cast<CreatureObject*>(parent.get().get());
+
+	PlayerManager* playerManager = creature->getZoneServer()->getPlayerManager();
+
+	if (account == nullptr) {
+		return 0;
+	}
+
+	Reference<CharacterList*> list = account->getCharacterList();
+
+	if (list == nullptr) {
+		return 0;
+	}
+
+	Time currentTime;
+	Time age;
+
+	for (int i = 0; i < list->size(); i++) {
+		CharacterListEntry entry = list->get(i);
+		if (entry.getObjectID() == creature->getObjectID() && entry.getGalaxyID() == creature->getZoneServer()->getGalaxyID()) {
+			age = entry.getCreationDate();
+			break;
+		}
+	}
+
+	uint32 timeDelta = currentTime.getTime() - age.getTime();
+	setBirthDate(timeDelta);
+
+	return birthDate;
+}
+
 bool PlayerObjectImplementation::hasEventPerk(const String& templatePath) const {
 	ZoneServer* zoneServer = server->getZoneServer();
 	ManagedReference<SceneObject*> eventPerk = nullptr;
@@ -3391,7 +3493,7 @@ String PlayerObjectImplementation::getPlayedTimeString(bool verbose) const {
 
 void PlayerObjectImplementation::createHelperDroid() {
 	// Only spawn droid if character is less than 1 days old
-	if (getCharacterAgeInDays() >= 1)
+	if (getCharacterAgeInDays() >= 1 || isPrivileged())
 		return;
 
 	CreatureObject* player = dynamic_cast<CreatureObject*>(parent.get().get());

@@ -40,6 +40,9 @@ public:
 
 		StringTokenizer tokenizer(arguments.toString());
 
+		if (!tokenizer.hasMoreTokens())
+			return GENERALERROR;
+
 		uint64 destinationID = tokenizer.getLongToken();
 		int transferType = tokenizer.getIntToken(); // containment type .. -1 container, >=4 slotted container
 		float unknown1 = tokenizer.getFloatToken();
@@ -155,7 +158,7 @@ public:
 
 		// Check for any parent that is containerType == NONE
 		for (auto parent = objectToTransfer->getParent().get(); parent != nullptr; parent = parent->getParent().get()) {
-			Locker lock(parent);
+			Locker clocker(parent, creature);
 
 			if (parent->getContainerType() == ContainerType::NONE) {
 				creature->error() << "Trying to remove object from containerType==NONE: oid " << parent->getObjectID();

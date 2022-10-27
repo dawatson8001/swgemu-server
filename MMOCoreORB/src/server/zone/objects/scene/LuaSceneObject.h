@@ -92,11 +92,13 @@ namespace scene {
 		int setContainerDefaultDenyPermission(lua_State* L);
 		int clearContainerDefaultDenyPermission(lua_State* L);
 		int setContainerOwnerID(lua_State* L);
+		int setContainerLockedStatus(lua_State* L);
 		int setObjectName(lua_State* L);
 		int isASubChildOf(lua_State* L);
 		int isOwned(lua_State* L);
 		int playEffect(lua_State* L);
 		int addPendingTask(lua_State* L);
+		int hasPendingTask(lua_State* L);
 		int cancelPendingTask(lua_State* L);
 		int getChildObject(lua_State* L);
 		int getContainerOwnerID(lua_State* L);
