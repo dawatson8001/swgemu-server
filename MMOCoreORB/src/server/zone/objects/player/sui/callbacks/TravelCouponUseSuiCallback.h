@@ -107,19 +107,19 @@ public:
 				trx.commit();
 			}
 		} else {
-			TransactionLog trx(player, TrxCode::TRAVELSYSTEM, false);
-			trx.addState("departurePlanet", departurePlanet);
-			trx.addState("departurePoint", departurePoint);
-			trx.addState("arrivalPlanet", arrivalPlanet);
-			trx.addState("arrivalPoint", arrivalPoint);
-			trx.addState("travelCoupon", true);
-			trx.addState("travelCouponId", voucher->getObjectID());
+			// TransactionLog trx(player, TrxCode::TRAVELSYSTEM, false);
+			// trx.addState("departurePlanet", departurePlanet);
+			// trx.addState("departurePoint", departurePoint);
+			// trx.addState("arrivalPlanet", arrivalPlanet);
+			// trx.addState("arrivalPoint", arrivalPoint);
+			// trx.addState("travelCoupon", true);
+			// trx.addState("travelCouponId", voucher->getObjectID());
 
 			Locker vlock(voucher, inventory);
 
 			voucher->destroyObjectFromWorld(true);
 			voucher->destroyObjectFromDatabase();
-			trx.commit();
+			// trx.commit();
 		}
 
 		if (inventory->transferObject(ticket, -1, true)) {
