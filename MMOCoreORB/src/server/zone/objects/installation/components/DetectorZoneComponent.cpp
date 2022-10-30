@@ -33,7 +33,8 @@ void DetectorZoneComponent::notifyPositionUpdate(SceneObject* sceneObject, QuadT
 	if(scannerData == nullptr || !scannerData->canScan())
 		return;
 
-	if(sceneObject->isDetector() && target->isPlayerCreature() && sceneObject->isInRange(target,65)){
+	// if(sceneObject->isDetector() && target->isPlayerCreature() && sceneObject->isInRange(target,65)){
+	if(target->isPlayerCreature() && sceneObject->isInRange(target,65)){
 		ManagedReference<CreatureObject*> player = cast<CreatureObject*>(entry);
 		if(player == nullptr)
 			return;
