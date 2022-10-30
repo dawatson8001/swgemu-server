@@ -165,6 +165,9 @@ void PetControlDeviceImplementation::callObject(CreatureObject* player) {
 	int maxLevelofPets = 10;
 	int level = pet->getLevel();
 
+	maxPets = 50;
+	maxLevelofPets = 1000;
+
 	if (pet->getCreatureTemplate() == nullptr) {
 		player->sendSystemMessage("Invalid creature to spawn!"); // Old npc without a npc template?
 		return;
@@ -178,8 +181,8 @@ void PetControlDeviceImplementation::callObject(CreatureObject* player) {
 		bool ch = player->hasSkill("outdoors_creaturehandler_novice");
 
 		if (ch) {
-			maxPets = player->getSkillMod("keep_creature");
-			maxLevelofPets = player->getSkillMod("tame_level");
+			// maxPets = player->getSkillMod("keep_creature");
+			// maxLevelofPets = player->getSkillMod("tame_level");
 		}
 
 		if (creaturePet->getAdultLevel() > maxLevelofPets) {
@@ -193,7 +196,7 @@ void PetControlDeviceImplementation::callObject(CreatureObject* player) {
 		}
 
 	} else if (petType == PetManager::FACTIONPET){
-		maxPets = 3;
+		// maxPets = 3;
 	}
 
 	for (int i = 0; i < ghost->getActivePetsSize(); ++i) {
