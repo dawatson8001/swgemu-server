@@ -29,7 +29,7 @@ destructionTimer = 600
 maxBasesPerPlanet = 25
 
 -- Maximum bases placeable per player. Reducing this number will automatically remove extra bases from players upon login
-maxBasesPerPlayer = 3
+maxBasesPerPlayer = 50
 
 -- The construction delay when placing a GCW base in seconds
 basePlacementDelay = 10
@@ -42,7 +42,7 @@ allowPveBases = true
 
 -- Allow bases to be placed together
 allowBaseComplex = true
-baseComplexSize = 3
+baseComplexSize = 10
 
 -- Range at which bases can be placed near one another. If base complexes are enabled they will adhere to this distance
 nearbyBaseDistance = 600
@@ -67,7 +67,7 @@ turretAutoFireTimeout = 20
 spawnBaseAlarms = false
 
 -- xp bonus for faction controlling a planet
-bonusXP = 15
+bonusXP = 50
 
 -- Crackdown settings
 crackdownScansEnabled = true
