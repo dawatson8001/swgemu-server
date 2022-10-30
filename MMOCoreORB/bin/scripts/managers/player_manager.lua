@@ -49,8 +49,8 @@ allowSameAccountPvpRatingCredit = 0
 
 --Blue frog / GM buff values
 performanceBuff = 2000
-medicalBuff = 2000
-performanceDuration = 1000 -- in seconds
+medicalBuff = 3000
+performanceDuration = 14400 -- in seconds
 medicalDuration = 14400 -- in seconds
 
 --Sets the experience multiplier while grouped
@@ -61,8 +61,8 @@ globalExpMultiplier = 2.0
 
 --Sets the base number of control devices of each type that a player can have in their datapad at once
 --For creature pets, A Creature Handler will have the base number + their stored pets skill mod as limit
-baseStoredCreaturePets = 50
-baseStoredFactionPets = 50
+baseStoredCreaturePets = 100
+baseStoredFactionPets = 100
 baseStoredDroids = 50
 baseStoredVehicles = 50
 baseStoredShips = 50

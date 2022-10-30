@@ -713,9 +713,9 @@ void EntertainingSessionImplementation::addEntertainerBuffStrength(CreatureObjec
 	float maxBuffStrength = 0.0f;	//cap based on enhancement skill
 
 	if (isDancing()) {
-		maxBuffStrength = (float) entertainer->getSkillMod("healing_dance_mind");
+		maxBuffStrength = (float) entertainer->getSkillMod("healing_dance_mind") + 25.0;
 	} else if (isPlayingMusic()) {
-		maxBuffStrength = (float) entertainer->getSkillMod("healing_music_mind");
+		maxBuffStrength = (float) entertainer->getSkillMod("healing_music_mind") + 25.0;
 	}
 
 	if (maxBuffStrength > 150.0f)
